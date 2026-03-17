@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>Interest Evolution · VENUS</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background: #020b18;
+  color: #e0f0ff;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+  width: 100vw; height: 100vh;
+}
+#bg-grid {
+  position:fixed; inset:0;
+  background-image:
+    linear-gradient(rgba(0,200,180,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,200,180,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+#particles { position:fixed; inset:0; pointer-events:none; z-index:0; }
+#mainSvg   { position:fixed; inset:0; width:100vw; height:100vh; z-index:1; }
+#ui        { position:fixed; inset:0; pointer-events:none; z-index:2; }
+
+/* ── 节点环动画 ── */
+@keyframes ring-active   { 0%{opacity:.55;} 100%{opacity:0; transform:scale(2.2);} }
+@keyframes ring-mutation { 0%{opacity:.75;} 100%{opacity:0; transform:scale(2.4);} }
+@keyframes ring-predict  { 0%{opacity:.35;} 100%{opacity:0; transform:scale(2.0);} }
+@keyframes node-mut-flash{ 0%,100%{opacity:1;} 50%{opacity:.65;} }
+@keyframes node-pred     { 0%,100%{opacity:.38;} 50%{opacity:.65;} }
+@keyframes scan          { from{transform:translateY(-100%);} to{transform:translateY(100vh);} }
+@keyframes burst         { 0%{r:0;opacity:.8;} 100%{r:120px;opacity:0;} }
+@keyframes fadeIn        { from{opacity:0;} to{opacity:1;} }
+
+.scan-line {
+  position:absolute; left:0; right:0; height:2px;
+  background:linear-gradient(90deg,transparent,rgba(0,229,176,.12),transparent);
+  animation: scan 7s linear infinite;
+  pointer-events:none;
+}
+
+/* ── 面板通用 ── */
+.panel {
+  background: rgba(2,11,24,.88);
+  border: 1px solid rgba(0,200,180,.28);
+  backdrop-filter: blur(8px);
+  font-size: 11px; letter-spacing:.4px; line-height:1.85;
+}
+.p-title { color:#00e5b0; font-weight:bold; letter-spacing:1px; }
+.p-muted { color:#556a7a; }
+.p-val   { color:#e0f0ff; font-weight:bold; }
+.p-red   { color:#ff3355; }
+.p-purple{ color:#9977ff; }
+
+/* 右上状态 */
+.panel-status {
+  position:absolute; top:18px; right:18px;
+  padding:10px 16px;
+}
+/* 演化概率 */
+.panel-evo {
+  position:absolute; top:116px; right:18px;
+  padding:7px 14px;
+}
+/* 右下数据 */
+.panel-data {
+  position:absolute; bottom:110px; right:18px;
+  padding:11px 16px;
+}
+/* 相位标签 */
+.panel-phase {
+  position:absolute; top:18px; left:50%; transform:translateX(-50%);
+  padding:8px 20px; min-width:260px; text-align:center;
+  border-radius:2px;
+}
+.phase-name { font-size:13px; font-weight:bold; color:#00e5b0; letter-spacing:1.5px; }
+.phase-date { font-size:10px; color:#556a7a; margin-top:2px; }
+
+/* 左上 */
+.panel-top-left {
+  position:absolute; top:18px; left:18px;
+  display:flex; flex-direction:column; gap:8px;
+  pointer-events:auto;
+}
+.back-btn {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 12px; border-radius:4px;
+  background:rgba(0,200,180,.08);
+  border:1px solid rgba(0,200,180,.25);
+  color:#00e5b0; font-size:11px; cursor:pointer;
+  text-decoration:none; transition:background .2s;
+}
+.back-btn:hover { background:rgba(0,200,180,.18); }
+
+/* 突变警告横幅 */
+.mutation-banner {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:rgba(255,51,85,.12); border:1px solid rgba(255,51,85,.5);
+  padding:12px 28px; font-size:14px; font-weight:bold;
+  letter-spacing:2px; color:#ff3355; text-align:center;
+  pointer-events:none; opacity:0; transition:opacity .4s;
+}
+
+/* ── 时间轴 ── */
+.timeline-wrap {
+  position:absolute; bottom:0; left:0; right:0;
+  height:95px;
+  background:linear-gradient(to top, rgba(2,11,24,.97), transparent);
+  padding:0 28px 16px;
+  display:flex; flex-direction:column; justify-content:flex-end;
+  pointer-events:auto;
+}
+.tl-labels {
+  display:flex; justify-content:space-between;
+  font-size:10px; color:#334455; letter-spacing:1px; margin-bottom:8px;
+}
+.tl-track-wrap { position:relative; height:20px; display:flex; align-items:center; }
+.tl-track {
+  width:100%; height:4px; border-radius:2px;
+  background:linear-gradient(90deg,#1a3a6a,#0099cc,#00e5b0,#aa66ff,#ff66aa);
+}
+.tl-markers {
+  position:absolute; top:0; left:0; right:0; height:100%;
+  display:flex; align-items:center; pointer-events:none;
+}
+.tl-marker {
+  position:absolute; width:10px; height:10px; border-radius:50%;
+  transform:translateX(-50%); cursor:pointer; pointer-events:auto;
+  transition:all .2s; border:2px solid;
+}
+.tl-marker:hover { transform:translateX(-50%) scale(1.4); }
+input#tlSlider {
+  position:absolute; inset:0; width:100%; height:100%;
+  opacity:0; cursor:pointer; margin:0; z-index:10;
+}
+.tl-thumb {
+  position:absolute; top:50%; transform:translate(-50%,-50%);
+  width:16px; height:16px; border-radius:50%;
+  background:#00e5b0; pointer-events:none;
+  box-shadow:0 0 10px #00e5b0,0 0 20px rgba(0,229,176,.4);
+  transition:left .4s cubic-bezier(.4,0,.2,1);
+}
+.tl-thumb-lbl {
+  position:absolute; top:-26px; transform:translateX(-50%);
+  background:rgba(0,229,176,.15); border:1px solid rgba(0,229,176,.5);
+  padding:2px 8px; font-size:10px; color:#00e5b0;
+  white-space:nowrap; pointer-events:none;
+}
+.tl-dates {
+  display:flex; justify-content:space-between;
+  font-size:10px; color:#223344; margin-top:8px;
+}
+
+/* 播放按钮 */
+.play-btn {
+  position:absolute; bottom:108px; left:18px;
+  background:rgba(0,200,180,.08); border:1px solid rgba(0,200,180,.3);
+  color:#00e5b0; font-size:11px; padding:6px 14px;
+  cursor:pointer; letter-spacing:1px;
+  display:flex; align-items:center; gap:6px;
+  pointer-events:auto; transition:background .2s;
+}
+.play-btn:hover { background:rgba(0,200,180,.18); }
+
+/* tooltip */
+.tooltip {
+  position:absolute; display:none;
+  background:rgba(2,11,24,.92); border:1px solid rgba(0,200,180,.3);
+  padding:8px 12px; font-size:11px; line-height:1.8;
+  pointer-events:none; backdrop-filter:blur(6px);
+}
+.tooltip.show { display:block; animation:fadeIn .15s; }
+.tt-name { font-weight:bold; letter-spacing:.5px; }
+
+::-webkit-scrollbar { display:none; }
+</style>
+</head>
+<body>
+<div id="bg-grid"></div>
+<canvas id="particles"></canvas>
+<svg id="mainSvg"></svg>
+
+<div id="ui">
+  <div class="scan-line"></div>
+
+  <!-- 左上 -->
+  <div class="panel-top-left">
+    <a class="back-btn" href="index.html">← VENUS DASHBOARD</a>
+  </div>
+
+  <!-- 相位标签 -->
+  <div class="panel panel-phase" id="phasePanel">
+    <div class="phase-name" id="phaseName">COLD START</div>
+    <div class="phase-date" id="phaseDate">2022-04-08 · 初始化兴趣图谱</div>
+  </div>
+
+  <!-- 右上状态 -->
+  <div class="panel panel-status">
+    <div class="p-title">USER INTEREST EVOLUTION</div>
+    <div class="p-title" style="margin-bottom:5px">TIME DECAY &amp; MUTATION DETECTION</div>
+    <div><span class="p-muted">STATUS: </span><span class="p-val" id="statusTxt">REPLAY</span></div>
+    <div><span class="p-muted">λ DECAY: </span><span class="p-val">0.10 / day</span></div>
+    <div><span class="p-muted">MODEL: </span><span class="p-val">1st ORDER MARKOV</span></div>
+    <div><span class="p-muted">USER: </span>
+      <select id="userSel" style="background:transparent;border:none;color:#00e5b0;font-family:inherit;font-size:11px;cursor:pointer;outline:none;" onchange="switchUser(+this.value)">
+        <option value="0">#42 · full_active</option>
+        <option value="1">#128 · high_active</option>
+        <option value="2">#307 · middle_active</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 演化概率 -->
+  <div class="panel panel-evo">
+    EVOLUTION PROBABILITY: <span class="p-val" id="evoPct">—</span>
+  </div>
+
+  <!-- 右下数据 -->
+  <div class="panel panel-data">
+    <div><span class="p-muted">ACTIVE NODES </span><span class="p-val" id="d-active" style="float:right;margin-left:20px">0</span></div>
+    <div><span class="p-muted">PREDICTED    </span><span class="p-purple p-val" id="d-pred" style="float:right;margin-left:20px">0</span></div>
+    <div><span class="p-muted">MUTATION     </span><span id="d-mut"  style="float:right;margin-left:20px">—</span></div>
+    <div><span class="p-muted">TRANSITIONS  </span><span class="p-val" id="d-links" style="float:right;margin-left:20px">0</span></div>
+  </div>
+
+  <!-- 突变警告横幅 -->
+  <div class="mutation-banner" id="mutBanner">
+    ⚠  ANOMALOUS MUTATION DETECTED  ⚠
+  </div>
+
+  <!-- 播放按钮 -->
+  <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ AUTO PLAY</button>
+
+  <!-- 时间轴 -->
+  <div class="timeline-wrap">
+    <div class="tl-labels">
+      <span>PAST</span><span>PRESENT</span><span>FUTURE PREDICTION →</span>
+    </div>
+    <div class="tl-track-wrap">
+      <div class="tl-track"></div>
+      <div class="tl-markers" id="tlMarkers"></div>
+      <div class="tl-thumb" id="tlThumb">
+        <div class="tl-thumb-lbl" id="tlLbl">2022-04-08</div>
+      </div>
+      <input type="range" id="tlSlider" min="0" max="5" step="1" value="0" oninput="onSlider(+this.value)">
+    </div>
+    <div class="tl-dates" id="tlDates"></div>
+  </div>
+
+  <!-- Tooltip -->
+  <div class="tooltip" id="tooltip">
+    <div class="tt-name" id="tt-name"></div>
+    <div><span class="p-muted">STATE: </span><span id="tt-state"></span></div>
+    <div id="tt-stats"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  粒子背景
+// ══════════════════════════════════════════
+const cvs = document.getElementById('particles')
+const pc  = cvs.getContext('2d')
+let PW, PH, pts = []
+function resizePts() {
+  PW = cvs.width = window.innerWidth
+  PH = cvs.height = window.innerHeight
+}
+resizePts()
+function initPts() {
+  pts = Array.from({length:70}, () => ({
+    x: Math.random()*PW, y: Math.random()*PH,
+    r: Math.random()*1.4+.3,
+    vx:(Math.random()-.5)*.18, vy:(Math.random()-.5)*.18,
+    a: Math.random()*.4+.08
+  }))
+}
+initPts()
+function tickPts() {
+  pc.clearRect(0,0,PW,PH)
+  pts.forEach(p=>{
+    p.x+=p.vx; p.y+=p.vy
+    if(p.x<0)p.x=PW; if(p.x>PW)p.x=0
+    if(p.y<0)p.y=PH; if(p.y>PH)p.y=0
+    pc.beginPath(); pc.arc(p.x,p.y,p.r,0,Math.PI*2)
+    pc.fillStyle=`rgba(0,220,180,${p.a})`; pc.fill()
+  })
+  requestAnimationFrame(tickPts)
+}
+tickPts()
+window.addEventListener('resize', ()=>{ resizePts(); initPts() })
+
+// ══════════════════════════════════════════
+//  时间线快照数据 (3个用户)
+// ══════════════════════════════════════════
+const USERS_DATA = [
+  // ── User #42 ──
+  {
+    snapshots: [
+      {
+        t:0, date:'2022-04-08', label:'COLD START', sub:'初始化兴趣图谱',
+        evoPct:'LOW', status:'REPLAY',
+        nodes:[
+          {id:'Tech News',     r:18, state:'active', eng:45, ctr:8,  watch:22},
+          {id:'Gadget Reviews',r:13, state:'active', eng:38, ctr:6,  watch:18},
+        ],
+        links:[ {s:'Tech News', t:'Gadget Reviews', p:.28} ]
+      },
+      {
+        t:1, date:'2022-04-13', label:'EARLY GROWTH', sub:'兴趣节点萌芽扩展',
+        evoPct:'LOW', status:'REPLAY',
+        nodes:[
+          {id:'Tech News',              r:26, state:'active', eng:62, ctr:10, watch:32},
+          {id:'Gadget Reviews',         r:20, state:'active', eng:55, ctr:9,  watch:28},
+          {id:'History Documentaries',  r:15, state:'active', eng:40, ctr:6,  watch:20},
+          {id:'Travel Blogs',           r:12, state:'active', eng:35, ctr:5,  watch:15},
+        ],
+        links:[
+          {s:'Tech News',             t:'Gadget Reviews',        p:.36},
+          {s:'History Documentaries', t:'Tech News',             p:.24},
+          {s:'Travel Blogs',          t:'History Documentaries', p:.30},
+        ]
+      },
+      {
+        t:2, date:'2022-04-20', label:'INTEREST EXPANSION', sub:'兴趣图谱快速生长',
+        evoPct:'MEDIUM', status:'REPLAY',
+        nodes:[
+          {id:'Tech News',              r:32, state:'active', eng:78, ctr:11, watch:38},
+          {id:'Gadget Reviews',         r:28, state:'active', eng:72, ctr:12, watch:35},
+          {id:'History Documentaries',  r:22, state:'active', eng:60, ctr:8,  watch:30},
+          {id:'Travel Blogs',           r:18, state:'active', eng:55, ctr:7,  watch:25},
+          {id:'Smart Home',             r:16, state:'active', eng:50, ctr:8,  watch:28},
+          {id:'Classic Literature',     r:10, state:'active', eng:30, ctr:4,  watch:15},
+        ],
+        links:[
+          {s:'Tech News',             t:'Gadget Reviews',        p:.42},
+          {s:'Gadget Reviews',        t:'Smart Home',            p:.34},
+          {s:'History Documentaries', t:'Tech News',             p:.35},
+          {s:'Travel Blogs',          t:'History Documentaries', p:.38},
+          {s:'Tech News',             t:'Classic Literature',    p:.20},
+        ]
+      },
+      {
+        t:3, date:'2022-04-25', label:'⚠ MUTATION DETECTED', sub:'异常兴趣突变 · 高置信度',
+        evoPct:'HIGH', status:'ALERT', mutation:true,
+        nodes:[
+          {id:'Tech News',              r:38, state:'active',   eng:89, ctr:12, watch:42},
+          {id:'Baby Products',          r:44, state:'mutation', eng:94, ctr:18, watch:56},
+          {id:'Gadget Reviews',         r:34, state:'active',   eng:85, ctr:14, watch:38},
+          {id:'Smart Home',             r:30, state:'active',   eng:80, ctr:13, watch:40},
+          {id:'History Documentaries',  r:26, state:'active',   eng:76, ctr:9,  watch:35},
+          {id:'Travel Blogs',           r:22, state:'active',   eng:71, ctr:8,  watch:28},
+          {id:'Classic Literature',     r:20, state:'active',   eng:60, ctr:7,  watch:25},
+          {id:'Data Science',           r:10, state:'predicted',eng:0,  ctr:0,  watch:0},
+        ],
+        links:[
+          {s:'Tech News',             t:'Classic Literature',   p:.32},
+          {s:'Tech News',             t:'Gadget Reviews',       p:.41},
+          {s:'History Documentaries', t:'Tech News',            p:.40},
+          {s:'Travel Blogs',          t:'History Documentaries',p:.40},
+          {s:'Gadget Reviews',        t:'Smart Home',           p:.55},
+          {s:'Baby Products',         t:'Travel Blogs',         p:.22},
+          {s:'Smart Home',            t:'Data Science',         p:.28},
+        ]
+      },
+      {
+        t:4, date:'2022-05-02', label:'STABILIZATION', sub:'兴趣结构趋于稳定',
+        evoPct:'HIGH', status:'REPLAY',
+        nodes:[
+          {id:'Tech News',              r:38, state:'active',   eng:89, ctr:12, watch:42},
+          {id:'Baby Products',          r:44, state:'mutation', eng:94, ctr:18, watch:56},
+          {id:'Gadget Reviews',         r:34, state:'active',   eng:85, ctr:14, watch:38},
+          {id:'Smart Home',             r:32, state:'active',   eng:91, ctr:15, watch:45},
+          {id:'History Documentaries',  r:28, state:'active',   eng:76, ctr:9,  watch:35},
+          {id:'Travel Blogs',           r:24, state:'active',   eng:71, ctr:8,  watch:28},
+          {id:'Classic Literature',     r:26, state:'active',   eng:65, ctr:8,  watch:30},
+          {id:'Data Science',           r:28, state:'predicted',eng:0,  ctr:0,  watch:0},
+          {id:'AI Research',            r:24, state:'predicted',eng:0,  ctr:0,  watch:0},
+        ],
+        links:[
+          {s:'Tech News',             t:'Classic Literature',   p:.32},
+          {s:'Tech News',             t:'Gadget Reviews',       p:.41},
+          {s:'History Documentaries', t:'Tech News',            p:.40},
+          {s:'Travel Blogs',          t:'History Documentaries',p:.40},
+          {s:'Gadget Reviews',        t:'Smart Home',           p:.55},
+          {s:'Smart Home',            t:'AI Research',          p:.28},
+          {s:'Smart Home',            t:'Data Science',         p:.33},
+          {s:'Baby Products',         t:'Travel Blogs',         p:.22},
+        ]
+      },
+      {
+        t:5, date:'→ PREDICTED', label:'FUTURE PREDICTION', sub:'预测兴趣演化路径',
+        evoPct:'HIGH', status:'PREDICTING',
+        nodes:[
+          {id:'Tech News',              r:38, state:'active',   eng:89, ctr:12, watch:42},
+          {id:'Baby Products',          r:44, state:'mutation', eng:94, ctr:18, watch:56},
+          {id:'Gadget Reviews',         r:34, state:'active',   eng:85, ctr:14, watch:38},
+          {id:'Smart Home',             r:32, state:'active',   eng:91, ctr:15, watch:45},
+          {id:'History Documentaries',  r:28, state:'active',   eng:76, ctr:9,  watch:35},
+          {id:'Travel Blogs',           r:24, state:'active',   eng:71, ctr:8,  watch:28},
+          {id:'Classic Literature',     r:26, state:'active',   eng:65, ctr:8,  watch:30},
+          {id:'Data Science',           r:30, state:'predicted',eng:0,  ctr:0,  watch:0},
+          {id:'AI Research',            r:28, state:'predicted',eng:0,  ctr:0,  watch:0},
+          {id:'History Stories',        r:20, state:'predicted',eng:0,  ctr:0,  watch:0},
+        ],
+        links:[
+          {s:'Tech News',             t:'Classic Literature',   p:.32},
+          {s:'Tech News',             t:'Gadget Reviews',       p:.41},
+          {s:'History Documentaries', t:'Tech News',            p:.40},
+          {s:'Travel Blogs',          t:'History Documentaries',p:.40},
+          {s:'Gadget Reviews',        t:'Smart Home',           p:.55},
+          {s:'Smart Home',            t:'AI Research',          p:.28},
+          {s:'Smart Home',            t:'Data Science',         p:.33},
+          {s:'Baby Products',         t:'Travel Blogs',         p:.22},
+          {s:'History Stories',       t:'Classic Literature',   p:.45},
+        ]
+      }
+    ]
+  },
+  // ── User #128 ──
+  {
+    snapshots: [
+      { t:0,date:'2022-04-08',label:'COLD START',sub:'初始化',evoPct:'LOW',status:'REPLAY',
+        nodes:[{id:'Music',r:16,state:'active',eng:42,ctr:7,watch:20}],links:[] },
+      { t:1,date:'2022-04-13',label:'EARLY GROWTH',sub:'兴趣扩展',evoPct:'LOW',status:'REPLAY',
+        nodes:[
+          {id:'Music',r:24,state:'active',eng:65,ctr:11,watch:35},
+          {id:'Dance',r:18,state:'active',eng:55,ctr:9, watch:28},
+          {id:'Fitness',r:14,state:'active',eng:45,ctr:7,watch:22},
+        ],
+        links:[{s:'Music',t:'Dance',p:.45},{s:'Dance',t:'Fitness',p:.32}]
+      },
+      { t:2,date:'2022-04-20',label:'INTEREST EXPANSION',sub:'内容多元化',evoPct:'MEDIUM',status:'REPLAY',
+        nodes:[
+          {id:'Music',r:32,state:'active',eng:78,ctr:13,watch:45},
+          {id:'Dance',r:28,state:'active',eng:72,ctr:12,watch:40},
+          {id:'Fitness',r:22,state:'active',eng:65,ctr:10,watch:35},
+          {id:'Cooking',r:18,state:'active',eng:55,ctr:8,watch:28},
+        ],
+        links:[
+          {s:'Music',t:'Dance',p:.52},{s:'Dance',t:'Fitness',p:.40},
+          {s:'Cooking',t:'Music',p:.28}
+        ]
+      },
+      { t:3,date:'2022-04-25',label:'⚠ MUTATION DETECTED',sub:'异常突变',evoPct:'HIGH',status:'ALERT',mutation:true,
+        nodes:[
+          {id:'Music',r:38,state:'active',eng:88,ctr:14,watch:50},
+          {id:'Gaming',r:42,state:'mutation',eng:95,ctr:20,watch:62},
+          {id:'Dance',r:32,state:'active',eng:80,ctr:13,watch:45},
+          {id:'Fitness',r:26,state:'active',eng:72,ctr:11,watch:38},
+          {id:'Cooking',r:22,state:'active',eng:66,ctr:9,watch:32},
+          {id:'Travel',r:10,state:'predicted',eng:0,ctr:0,watch:0},
+        ],
+        links:[
+          {s:'Music',t:'Dance',p:.54},{s:'Dance',t:'Fitness',p:.42},
+          {s:'Gaming',t:'Music',p:.30},{s:'Cooking',t:'Music',p:.35},
+          {s:'Fitness',t:'Travel',p:.24}
+        ]
+      },
+      { t:4,date:'2022-05-02',label:'STABILIZATION',sub:'趋于稳定',evoPct:'HIGH',status:'REPLAY',
+        nodes:[
+          {id:'Music',r:40,state:'active',eng:90,ctr:15,watch:52},
+          {id:'Gaming',r:44,state:'mutation',eng:95,ctr:20,watch:62},
+          {id:'Dance',r:34,state:'active',eng:82,ctr:13,watch:46},
+          {id:'Fitness',r:28,state:'active',eng:74,ctr:11,watch:40},
+          {id:'Cooking',r:24,state:'active',eng:68,ctr:9, watch:34},
+          {id:'Travel',r:22,state:'predicted',eng:0,ctr:0,watch:0},
+          {id:'Photography',r:18,state:'predicted',eng:0,ctr:0,watch:0},
+        ],
+        links:[
+          {s:'Music',t:'Dance',p:.56},{s:'Dance',t:'Fitness',p:.44},
+          {s:'Gaming',t:'Music',p:.32},{s:'Cooking',t:'Music',p:.36},
+          {s:'Fitness',t:'Travel',p:.28},{s:'Music',t:'Photography',p:.22}
+        ]
+      },
+      { t:5,date:'→ PREDICTED',label:'FUTURE PREDICTION',sub:'预测演化',evoPct:'HIGH',status:'PREDICTING',
+        nodes:[
+          {id:'Music',r:40,state:'active',eng:90,ctr:15,watch:52},
+          {id:'Gaming',r:44,state:'mutation',eng:95,ctr:20,watch:62},
+          {id:'Dance',r:34,state:'active',eng:82,ctr:13,watch:46},
+          {id:'Fitness',r:28,state:'active',eng:74,ctr:11,watch:40},
+          {id:'Cooking',r:24,state:'active',eng:68,ctr:9, watch:34},
+          {id:'Travel',r:24,state:'predicted',eng:0,ctr:0,watch:0},
+          {id:'Photography',r:22,state:'predicted',eng:0,ctr:0,watch:0},
+          {id:'Poetry',r:16,state:'predicted',eng:0,ctr:0,watch:0},
+        ],
+        links:[
+          {s:'Music',t:'Dance',p:.56},{s:'Dance',t:'Fitness',p:.44},
+          {s:'Gaming',t:'Music',p:.32},{s:'Cooking',t:'Music',p:.36},
+          {s:'Fitness',t:'Travel',p:.30},{s:'Music',t:'Photography',p:.24},
+          {s:'Dance',t:'Poetry',p:.18}
+        ]
+      }
+    ]
+  },
+  // ── User #307 ──
+  {
+    snapshots: [
+      { t:0,date:'2022-04-08',label:'COLD START',sub:'初始化',evoPct:'LOW',status:'REPLAY',
+        nodes:[{id:'Education',r:15,state:'active',eng:40,ctr:7,watch:20}],links:[] },
+      { t:1,date:'2022-04-13',label:'EARLY GROWTH',sub:'知识类兴趣',evoPct:'LOW',status:'REPLAY',
+        nodes:[
+          {id:'Education',r:22,state:'active',eng:60,ctr:9,watch:30},
+          {id:'Science',r:16,state:'active',eng:50,ctr:7,watch:24},
+        ],
+        links:[{s:'Science',t:'Education',p:.42}]
+      },
+      { t:2,date:'2022-04-20',label:'INTEREST EXPANSION',sub:'学术扩展',evoPct:'MEDIUM',status:'REPLAY',
+        nodes:[
+          {id:'Education',r:30,state:'active',eng:72,ctr:11,watch:38},
+          {id:'Science',r:26,state:'active',eng:68,ctr:10,watch:34},
+          {id:'Politics',r:20,state:'active',eng:58,ctr:8, watch:28},
+          {id:'Art',r:14,state:'active',eng:44,ctr:6,watch:20},
+        ],
+        links:[
+          {s:'Science',t:'Education',p:.52},{s:'Politics',t:'Science',p:.35},
+          {s:'Art',t:'Education',p:.28}
+        ]
+      },
+      { t:3,date:'2022-04-25',label:'⚠ MUTATION DETECTED',sub:'金融类突变',evoPct:'HIGH',status:'ALERT',mutation:true,
+        nodes:[
+          {id:'Education',r:36,state:'active',eng:82,ctr:12,watch:44},
+          {id:'Finance',r:42,state:'mutation',eng:96,ctr:19,watch:58},
+          {id:'Science',r:30,state:'active',eng:76,ctr:11,watch:40},
+          {id:'Politics',r:24,state:'active',eng:66,ctr:9, watch:32},
+          {id:'Art',r:18,state:'active',eng:54,ctr:7,watch:24},
+          {id:'Philosophy',r:10,state:'predicted',eng:0,ctr:0,watch:0},
+        ],
+        links:[
+          {s:'Science',t:'Education',p:.55},{s:'Finance',t:'Science',p:.44},
+          {s:'Politics',t:'Finance',p:.38},{s:'Art',t:'Education',p:.32},
+          {s:'Education',t:'Philosophy',p:.22}
+        ]
+      },
+      { t:4,date:'2022-05-02',label:'STABILIZATION',sub:'趋于稳定',evoPct:'HIGH',status:'REPLAY',
+        nodes:[
+          {id:'Education',r:38,state:'active',eng:85,ctr:13,watch:46},
+          {id:'Finance',r:44,state:'mutation',eng:96,ctr:19,watch:58},
+          {id:'Science',r:32,state:'active',eng:78,ctr:11,watch:42},
+          {id:'Politics',r:26,state:'active',eng:68,ctr:9, watch:34},
+          {id:'Art',r:20,state:'active',eng:56,ctr:7,watch:26},
+          {id:'Philosophy',r:22,state:'predicted',eng:0,ctr:0,watch:0},
+          {id:'History',r:18,state:'predicted',eng:0,ctr:0,watch:0},
+        ],
+        links:[
+          {s:'Science',t:'Education',p:.56},{s:'Finance',t:'Science',p:.46},
+          {s:'Politics',t:'Finance',p:.40},{s:'Art',t:'Education',p:.34},
+          {s:'Education',t:'Philosophy',p:.28},{s:'Science',t:'History',p:.24}
+        ]
+      },
+      { t:5,date:'→ PREDICTED',label:'FUTURE PREDICTION',sub:'预测演化',evoPct:'HIGH',status:'PREDICTING',
+        nodes:[
+          {id:'Education',r:38,state:'active',eng:85,ctr:13,watch:46},
+          {id:'Finance',r:44,state:'mutation',eng:96,ctr:19,watch:58},
+          {id:'Science',r:32,state:'active',eng:78,ctr:11,watch:42},
+          {id:'Politics',r:26,state:'active',eng:68,ctr:9, watch:34},
+          {id:'Art',r:20,state:'active',eng:56,ctr:7,watch:26},
+          {id:'Philosophy',r:24,state:'predicted',eng:0,ctr:0,watch:0},
+          {id:'History',r:22,state:'predicted',eng:0,ctr:0,watch:0},
+          {id:'Math',r:18,state:'predicted',eng:0,ctr:0,watch:0},
+        ],
+        links:[
+          {s:'Science',t:'Education',p:.56},{s:'Finance',t:'Science',p:.46},
+          {s:'Politics',t:'Finance',p:.40},{s:'Art',t:'Education',p:.34},
+          {s:'Education',t:'Philosophy',p:.30},{s:'Science',t:'History',p:.26},
+          {s:'Science',t:'Math',p:.35}
+        ]
+      }
+    ]
+  }
+]
+
+// ══════════════════════════════════════════
+//  颜色
+// ══════════════════════════════════════════
+const COLOR = {active:'#00e5a0', mutation:'#ff3355', predicted:'#8866ff'}
+
+// ══════════════════════════════════════════
+//  D3 全局
+// ══════════════════════════════════════════
+const svg   = d3.select('#mainSvg')
+let sim     = null
+let allNodes = []
+let allLinks = []
+let nodeG, linkG
+let curUser = 0
+let curSnap = 0
+let playing = false
+let playTimer = null
+
+// ══════════════════════════════════════════
+//  时间轴初始化
+// ══════════════════════════════════════════
+function buildTimeline(snapshots) {
+  const marks = document.getElementById('tlMarkers')
+  const dates = document.getElementById('tlDates')
+  marks.innerHTML = ''
+  dates.innerHTML = ''
+  snapshots.forEach((s, i) => {
+    const pct = (i / (snapshots.length - 1)) * 100
+    const dot = document.createElement('div')
+    dot.className = 'tl-marker'
+    dot.style.left = pct + '%'
+    dot.style.background = s.mutation ? '#ff3355' : (i === snapshots.length - 1 ? '#8866ff' : '#00e5a0')
+    dot.style.borderColor = dot.style.background
+    dot.style.boxShadow  = `0 0 8px ${dot.style.background}`
+    dot.title = s.date
+    dot.onclick = () => { document.getElementById('tlSlider').value = i; onSlider(i) }
+    marks.appendChild(dot)
+
+    const d = document.createElement('span')
+    d.textContent = s.date
+    d.style.color = s.mutation ? '#ff3355' : (i === snapshots.length-1 ? '#8866ff' : '#334455')
+    dates.appendChild(d)
+  })
+}
+
+// ══════════════════════════════════════════
+//  构建全量节点+边（跨所有快照）
+// ══════════════════════════════════════════
+function buildAllNodesLinks(snapshots) {
+  const nodeMap = new Map()
+  const linkSet = new Set()
+  const links   = []
+
+  snapshots.forEach(snap => {
+    snap.nodes.forEach(n => {
+      if (!nodeMap.has(n.id)) nodeMap.set(n.id, { id: n.id, x: 0, y: 0 })
+    })
+    snap.links.forEach(l => {
+      const key = l.s + '||' + l.t
+      if (!linkSet.has(key)) {
+        linkSet.add(key)
+        links.push({ source: l.s, target: l.t, prob: l.p })
+      }
+    })
+  })
+
+  return { nodes: Array.from(nodeMap.values()), links }
+}
+
+// ══════════════════════════════════════════
+//  初始化力导向图
+// ══════════════════════════════════════════
+function initGraph(userIdx) {
+  svg.selectAll('*').remove()
+  curUser = userIdx
+
+  const snaps = USERS_DATA[userIdx].snapshots
+  buildTimeline(snaps)
+  document.getElementById('tlSlider').value = 0
+
+  const { nodes, links } = buildAllNodesLinks(snaps)
+  allNodes = nodes
+  allLinks = links
+
+  const W = window.innerWidth
+  const H = window.innerHeight
+
+  // ── defs: glow filters ──
+  const defs = svg.append('defs')
+  ;['active','mutation','predicted'].forEach(s => {
+    const f = defs.append('filter').attr('id','glow-'+s)
+      .attr('x','-70%').attr('y','-70%').attr('width','240%').attr('height','240%')
+    f.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation', s==='mutation'?9:7).attr('result','b')
+    const m = f.append('feMerge')
+    m.append('feMergeNode').attr('in','b')
+    m.append('feMergeNode').attr('in','b')
+    m.append('feMergeNode').attr('in','SourceGraphic')
+  })
+
+  // 径向渐变 per-node（预先注册）
+  nodes.forEach(n => {
+    ;['active','mutation','predicted'].forEach(s => {
+      const id = 'grad-' + n.id.replace(/[\s#]/g,'-') + '-' + s
+      const g = defs.append('radialGradient').attr('id', id)
+        .attr('cx','50%').attr('cy','35%')
+      if (s === 'active') {
+        g.append('stop').attr('offset','0%').attr('stop-color','#ffffff').attr('stop-opacity','.95')
+        g.append('stop').attr('offset','45%').attr('stop-color',COLOR.active).attr('stop-opacity','.65')
+        g.append('stop').attr('offset','100%').attr('stop-color',COLOR.active).attr('stop-opacity','.04')
+      } else if (s === 'mutation') {
+        g.append('stop').attr('offset','0%').attr('stop-color','#ffcccc').attr('stop-opacity','1')
+        g.append('stop').attr('offset','40%').attr('stop-color',COLOR.mutation).attr('stop-opacity','.75')
+        g.append('stop').attr('offset','100%').attr('stop-color',COLOR.mutation).attr('stop-opacity','.06')
+      } else {
+        g.append('stop').attr('offset','0%').attr('stop-color',COLOR.predicted).attr('stop-opacity','.5')
+        g.append('stop').attr('offset','100%').attr('stop-color',COLOR.predicted).attr('stop-opacity','.03')
+      }
+    })
+  })
+
+  // ── 模拟 ──
+  sim = d3.forceSimulation(allNodes)
+    .force('link', d3.forceLink(allLinks).id(d=>d.id).distance(180).strength(.5))
+    .force('charge', d3.forceManyBody().strength(-320))
+    .force('center', d3.forceCenter(W/2, H/2 - 50))
+    .force('collision', d3.forceCollide(55))
+    .alphaDecay(.02)
+
+  // ── 边层 ──
+  linkG = svg.append('g').attr('class','link-layer')
+  const linkSel = linkG.selectAll('.lnk').data(allLinks).join('g').attr('class','lnk')
+  linkSel.append('line').attr('class','lnk-line')
+    .attr('stroke','#00cc99').attr('stroke-opacity',0).attr('stroke-width',1)
+  linkSel.append('text').attr('class','lnk-lbl')
+    .attr('fill','#00cc99').attr('font-size','10px').attr('font-family','Courier New,monospace')
+    .attr('text-anchor','middle').attr('opacity',0)
+
+  // ── 节点层 ──
+  nodeG = svg.append('g').attr('class','node-layer')
+  const nodeSel = nodeG.selectAll('.nd').data(allNodes).join('g')
+    .attr('class','nd').style('opacity',0).style('pointer-events','none')
+    .call(d3.drag()
+      .on('start',(e,d)=>{ if(!e.active)sim.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y })
+      .on('drag', (e,d)=>{ d.fx=e.x; d.fy=e.y })
+      .on('end',  (e,d)=>{ if(!e.active)sim.alphaTarget(0); d.fx=null; d.fy=null })
+    )
+
+  nodes.forEach(n => {
+    const g = nodeG.select(`.nd[data-id="${n.id}"]`)
+    // mark for selection
+  })
+
+  // 预先为每个节点添加可重用子元素
+  const ndG = nodeG.selectAll('.nd')
+  // 轨道环 (3层)
+  ;[0,1,2].forEach(i => {
+    ndG.append('circle').attr('class','ring ring'+i)
+      .attr('fill','none').attr('stroke-width', 1.5 - i*.3)
+      .attr('opacity',0)
+  })
+  // burst circle (只用一次)
+  ndG.append('circle').attr('class','burst-circle').attr('fill','none').attr('stroke-width',1.5).attr('opacity',0)
+  // 内部填充
+  ndG.append('circle').attr('class','node-fill').attr('r',0)
+  // 节点名
+  ndG.append('text').attr('class','node-lbl')
+    .attr('text-anchor','middle').attr('font-family','Courier New,monospace')
+    .attr('font-weight','bold').attr('font-size','13px')
+  // 突变/预测 子标签
+  ndG.append('text').attr('class','node-sublbl')
+    .attr('text-anchor','middle').attr('font-family','Courier New,monospace')
+    .attr('font-size','10px')
+  // 统计信息
+  ;['eng','ctr','watch'].forEach((k,j) => {
+    ndG.append('text').attr('class','stat-'+k)
+      .attr('font-family','Courier New,monospace').attr('font-size','10px')
+      .attr('fill','#8ab').attr('opacity',0)
+  })
+
+  // hover
+  ndG.on('mouseenter', (e,d)=>{
+    const snap = USERS_DATA[curUser].snapshots[curSnap]
+    const nd = snap.nodes.find(n=>n.id===d.id)
+    if (!nd) return
+    const tt = document.getElementById('tooltip')
+    tt.classList.add('show')
+    document.getElementById('tt-name').textContent = nd.id
+    document.getElementById('tt-name').style.color = COLOR[nd.state]
+    document.getElementById('tt-state').textContent = nd.state.toUpperCase()
+    document.getElementById('tt-state').style.color = COLOR[nd.state]
+    document.getElementById('tt-stats').innerHTML = nd.state !== 'predicted'
+      ? `<div><span class="p-muted">ENG: </span>${nd.eng}%</div>
+         <div><span class="p-muted">CTR: </span>${nd.ctr}%</div>
+         <div><span class="p-muted">WATCH: </span>${nd.watch}s</div>`
+      : '<div style="color:#556a7a">— awaiting data —</div>'
+  })
+  .on('mousemove', e=>{
+    const tt = document.getElementById('tooltip')
+    tt.style.left = (e.clientX+16)+'px'; tt.style.top = (e.clientY-10)+'px'
+  })
+  .on('mouseleave', ()=> document.getElementById('tooltip').classList.remove('show'))
+
+  sim.on('tick', ()=>{
+    linkG.selectAll('.lnk-line')
+      .attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+      .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y)
+    linkG.selectAll('.lnk-lbl')
+      .attr('x',d=>(d.source.x+d.target.x)/2)
+      .attr('y',d=>(d.source.y+d.target.y)/2-5)
+    nodeG.selectAll('.nd')
+      .attr('transform', d=>`translate(${d.x??0},${d.y??0})`)
+  })
+
+  updateSnapshot(0, 0)
+}
+
+// ══════════════════════════════════════════
+//  快照更新（带过渡动画）
+// ══════════════════════════════════════════
+function updateSnapshot(idx, dur=700) {
+  curSnap = idx
+  const snap = USERS_DATA[curUser].snapshots[idx]
+  const nodeMap = new Map(snap.nodes.map(n=>[n.id,n]))
+  const linkKey = new Set(snap.links.map(l=>l.s+'||'+l.t))
+
+  // ── 更新面板文字 ──
+  document.getElementById('phaseName').textContent = snap.label
+  document.getElementById('phaseDate').textContent = snap.date + ' · ' + snap.sub
+  document.getElementById('statusTxt').textContent = snap.status
+  document.getElementById('evoPct').textContent    = snap.evoPct
+  document.getElementById('evoPct').style.color    = snap.evoPct==='HIGH' ? '#ff3355' : snap.evoPct==='MEDIUM' ? '#FB923C' : '#00e5a0'
+  document.getElementById('tlThumb').style.left    = (idx/(snap.t==5?5:5))*100+'%'
+  document.getElementById('tlLbl').textContent     = snap.date
+
+  const activeC  = snap.nodes.filter(n=>n.state==='active').length
+  const predC    = snap.nodes.filter(n=>n.state==='predicted').length
+  const hasMut   = snap.nodes.some(n=>n.state==='mutation')
+  document.getElementById('d-active').textContent = activeC
+  document.getElementById('d-pred').textContent   = predC
+  document.getElementById('d-links').textContent  = snap.links.length
+  const dmut = document.getElementById('d-mut')
+  dmut.textContent = hasMut ? 'YES' : 'NO'
+  dmut.className   = hasMut ? 'p-red p-val' : 'p-val'
+
+  // 突变警告横幅
+  const banner = document.getElementById('mutBanner')
+  if (snap.mutation) {
+    banner.style.opacity = '1'
+    setTimeout(()=>{ banner.style.opacity='0' }, 2400)
+    // burst effect at mutation node position
+    const mutNode = allNodes.find(n => n.id === snap.nodes.find(nd=>nd.state==='mutation')?.id)
+    if (mutNode) fireBurst(mutNode)
+  }
+
+  // ── 节点 ──
+  nodeG.selectAll('.nd').each(function(d) {
+    const g = d3.select(this)
+    const nd = nodeMap.get(d.id)
+    const visible = !!nd
+    const state   = nd?.state ?? 'active'
+    const col     = COLOR[state]
+    const baseR   = nd?.r ?? 0
+    const gradId  = `url(#grad-${d.id.replace(/[\s#]/g,'-')}-${state})`
+
+    // 整体可见度
+    g.style('pointer-events', visible ? 'auto' : 'none')
+    g.transition().duration(dur).style('opacity', visible ? 1 : 0)
+
+    // 内核
+    g.select('.node-fill')
+      .attr('filter', visible && state!=='predicted' ? `url(#glow-${state})` : null)
+      .transition().duration(dur)
+      .attr('r', baseR)
+      .attr('fill', gradId)
+
+    // 轨道环
+    ;[0,1,2].forEach(i => {
+      const ring = g.select('.ring'+i)
+      ring.attr('stroke', col)
+        .style('--base', (baseR+8)+'px')
+        .style('--max',  (baseR+55+i*18)+'px')
+        .transition().duration(dur)
+        .attr('r', visible ? baseR+8 : 0)
+        .attr('opacity', visible ? 1 : 0)
+
+      // 重置 CSS 动画
+      const animName = state==='mutation' ? 'ring-mutation' : state==='predicted' ? 'ring-predict' : 'ring-active'
+      const delay    = [0,.8,1.6][i]
+      ring.style('animation', visible ? `${animName} ${[2.4,2.4,3.2][i+(state==='mutation'?0:0)]}s ease-out ${delay}s infinite` : 'none')
+      if (state==='mutation') ring.style('animation-duration', `${[1.4,1.6,1.8][i]}s`)
+    })
+
+    // 节点名
+    g.select('.node-lbl')
+      .text(d.id)
+      .attr('y', -(baseR+14))
+      .attr('fill', state==='predicted' ? '#9977ff' : '#c8eeff')
+      .attr('opacity', state==='predicted' ? .70 : 1)
+      .attr('font-size', baseR < 16 ? '11px' : '13px')
+
+    // 子标签
+    const sublbl = g.select('.node-sublbl')
+    if (state==='mutation' && visible) {
+      sublbl.text('Abnormal Mutation · High Confidence')
+        .attr('y', baseR+20).attr('fill','#ff3355')
+        .style('animation','node-mut-flash 1.2s infinite')
+        .attr('opacity',1)
+    } else if (state==='predicted' && visible) {
+      sublbl.text('Predicted Interest')
+        .attr('y', baseR+18).attr('fill','#9977ff')
+        .style('animation','node-pred 2s infinite')
+        .attr('opacity',.7)
+    } else {
+      sublbl.text('').attr('opacity',0)
+    }
+
+    // 统计
+    if (visible && state!=='predicted' && nd.eng > 0) {
+      const off = baseR + 10
+      g.select('.stat-eng').text(`ENG: ${nd.eng}%`).attr('x', off).attr('y',-12).attr('fill','#8ab').transition().duration(dur).attr('opacity',1)
+      g.select('.stat-ctr').text(`CTR: ${nd.ctr}%`).attr('x',off).attr('y',2).attr('fill','#8ab').transition().duration(dur).attr('opacity',1)
+      g.select('.stat-watch').text(`WATCH: ${nd.watch}s`).attr('x',off).attr('y',16).attr('fill','#8ab').transition().duration(dur).attr('opacity',1)
+    } else {
+      g.select('.stat-eng').transition().duration(dur).attr('opacity',0)
+      g.select('.stat-ctr').transition().duration(dur).attr('opacity',0)
+      g.select('.stat-watch').transition().duration(dur).attr('opacity',0)
+    }
+  })
+
+  // ── 边 ──
+  linkG.selectAll('.lnk').each(function(d) {
+    const key = (d.source.id||d.source) + '||' + (d.target.id||d.target)
+    const active = linkKey.has(key)
+    const lnkData = snap.links.find(l => l.s+('')+l.t === (d.source.id||d.source)+(d.target.id||d.target))
+    const prob = lnkData ? lnkData.p : 0
+
+    d3.select(this).select('.lnk-line')
+      .transition().duration(dur)
+      .attr('stroke-opacity', active ? .35 : 0)
+      .attr('stroke-width',  active ? Math.max(1, prob*5) : 0)
+
+    d3.select(this).select('.lnk-lbl')
+      .text(active ? `P=${prob.toFixed(2)}` : '')
+      .transition().duration(dur)
+      .attr('opacity', active ? .9 : 0)
+  })
+
+  // 扰动模拟
+  sim.alpha(.18).restart()
+}
+
+// ══════════════════════════════════════════
+//  爆发特效 (突变时)
+// ══════════════════════════════════════════
+function fireBurst(node) {
+  const circle = svg.append('circle')
+    .attr('cx', node.x ?? window.innerWidth/2)
+    .attr('cy', node.y ?? window.innerHeight/2)
+    .attr('r', 0).attr('fill','none')
+    .attr('stroke','#ff3355').attr('stroke-width',2)
+    .attr('opacity',.85)
+
+  circle.transition().duration(900).ease(d3.easeQuadOut)
+    .attr('r', 130).attr('opacity', 0)
+    .on('end', () => circle.remove())
+}
+
+// ══════════════════════════════════════════
+//  时间轴交互
+// ══════════════════════════════════════════
+function onSlider(val) {
+  val = Math.round(val)
+  document.getElementById('tlSlider').value = val
+  document.getElementById('tlThumb').style.left = (val / 5 * 100) + '%'
+  updateSnapshot(val)
+}
+
+// ══════════════════════════════════════════
+//  自动播放
+// ══════════════════════════════════════════
+let autoIdx = 0
+function togglePlay() {
+  const btn = document.getElementById('playBtn')
+  playing = !playing
+  if (playing) {
+    btn.textContent = '⏸ PAUSE'
+    autoIdx = curSnap
+    playTimer = setInterval(() => {
+      autoIdx = (autoIdx + 1) % 6
+      document.getElementById('tlSlider').value = autoIdx
+      updateSnapshot(autoIdx)
+      if (autoIdx === 5) {
+        clearInterval(playTimer)
+        playing = false
+        btn.textContent = '▶ AUTO PLAY'
+      }
+    }, 1800)
+  } else {
+    clearInterval(playTimer)
+    btn.textContent = '▶ AUTO PLAY'
+  }
+}
+
+// ══════════════════════════════════════════
+//  切换用户
+// ══════════════════════════════════════════
+function switchUser(idx) {
+  curUser = idx
+  playing = false
+  clearInterval(playTimer)
+  document.getElementById('playBtn').textContent = '▶ AUTO PLAY'
+  initGraph(idx)
+}
+
+// ══════════════════════════════════════════
+//  初始化
+// ══════════════════════════════════════════
+initGraph(0)
+window.addEventListener('resize', () => {
+  if (sim) sim.force('center', d3.forceCenter(window.innerWidth/2, window.innerHeight/2-50)).alpha(.3).restart()
+})
+</script>
+</body>
+</html>

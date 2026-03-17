@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="zh" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recommendation Dashboard</title>
+
+<!-- Bootstrap 5 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<!-- D3.js -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+<style>
+/* ══════════════════════════════════════════
+   THEME OVERRIDES
+══════════════════════════════════════════ */
+:root {
+  --bg:         #0B1437;
+  --sidebar-bg: #111C44;
+  --card-bg:    #111C44;
+  --card-bg2:   #1B2559;
+  --border:     rgba(255,255,255,.06);
+  --accent:     #4318FF;
+  --accent2:    #868CFF;
+  --accent-glow:rgba(67,24,255,.4);
+  --text:       #E9ECF7;
+  --muted:      #A0AEC0;
+  --green:      #01B574;
+  --orange:     #FF9A3C;
+  --pink:       #E879F9;
+  --cyan:       #21AEF3;
+  --red:        #EE5D50;
+}
+
+[data-bs-theme="dark"] {
+  --bs-body-bg:    var(--bg);
+  --bs-body-color: var(--text);
+  --bs-card-bg:    var(--card-bg);
+  --bs-border-color: var(--border);
+  --bs-primary:    var(--accent);
+}
+
+* { box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(67,24,255,.18) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 10%, rgba(33,174,243,.12) 0%, transparent 50%);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ══════════════════════════════════════════
+   SIDEBAR
+══════════════════════════════════════════ */
+.sidebar {
+  position: fixed;
+  top: 0; left: 0;
+  width: 250px;
+  height: 100vh;
+  background: linear-gradient(180deg, #1B2559 0%, #111C44 60%, #0D1636 100%);
+  border-right: 1px solid rgba(255,255,255,.06);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  overflow-y: auto;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-icon {
+  width: 42px; height: 42px;
+  background: linear-gradient(135deg, #4318FF, #868CFF);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 4px 24px rgba(67,24,255,.5), 0 0 0 1px rgba(134,140,255,.2);
+  flex-shrink: 0;
+}
+.logo-name { font-size: 17px; font-weight: 800; letter-spacing: 1.5px; }
+.logo-sub  { font-size: 9px; color: var(--muted); letter-spacing: 2.5px; margin-top: 1px; }
+
+/* User profile block */
+.sidebar-profile {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.avatar {
+  width: 38px; height: 38px;
+  background: linear-gradient(135deg, var(--green), var(--cyan));
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #000;
+  flex-shrink: 0;
+}
+.profile-name { font-size: 13px; font-weight: 600; }
+.profile-role { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+/* Nav section label */
+.nav-section {
+  padding: 14px 20px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+}
+
+/* Nav items */
+.nav-link-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 0;
+  transition: all .2s;
+  text-decoration: none;
+  position: relative;
+  margin: 1px 10px;
+  border-radius: 8px;
+}
+.nav-link-item:hover {
+  background: rgba(91,79,232,.12);
+  color: var(--text);
+}
+.nav-link-item.active {
+  background: linear-gradient(90deg, rgba(67,24,255,.35) 0%, rgba(134,140,255,.12) 100%);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(134,140,255,.15);
+}
+.nav-link-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 20%; bottom: 20%;
+  width: 3px;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+  margin-left: -10px;
+}
+.nav-link-item .nav-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.nav-badge {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+/* ══════════════════════════════════════════
+   TOPBAR
+══════════════════════════════════════════ */
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 250px;
+  right: 0;
+  height: 60px;
+  background: rgba(11,20,55,.85);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  gap: 16px;
+  z-index: 999;
+}
+.topbar-breadcrumb {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topbar-breadcrumb .current { color: var(--text); font-weight: 600; }
+.topbar-breadcrumb .sep { opacity: .4; }
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topbar-btn {
+  width: 36px; height: 36px;
+  background: var(--card-bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--muted);
+  transition: all .2s;
+}
+.topbar-btn:hover { color: var(--text); border-color: var(--accent); }
+.topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 5px;
+  background: var(--card-bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.topbar-avatar {
+  width: 26px; height: 26px;
+  background: linear-gradient(135deg, var(--accent), var(--pink));
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+}
+
+/* ══════════════════════════════════════════
+   MAIN CONTENT
+══════════════════════════════════════════ */
+.main-content {
+  margin-left: 250px;
+  padding-top: 60px;
+  min-height: 100vh;
+}
+.page-content {
+  padding: 28px;
+}
+
+.page { display: none; }
+.page.active { display: block; animation: fadein .3s ease; }
+@keyframes fadein { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+/* ══════════════════════════════════════════
+   CARDS
+══════════════════════════════════════════ */
+.v-card {
+  background: linear-gradient(180deg, rgba(27,37,89,.8) 0%, rgba(17,28,68,.9) 100%);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 14px;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+}
+.v-card-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.v-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.v-card-title .icon { font-size: 15px; }
+.v-card-body { padding: 20px; }
+.v-card-footer {
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ══════════════════════════════════════════
+   KPI TILES
+══════════════════════════════════════════ */
+.kpi-tile {
+  background: linear-gradient(135deg, rgba(27,37,89,.9) 0%, rgba(17,28,68,.95) 100%);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px;
+  padding: 20px 22px;
+  position: relative;
+  overflow: hidden;
+  transition: transform .2s, box-shadow .2s;
+}
+.kpi-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+}
+.kpi-tile::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+}
+.kpi-tile.t-purple::after { background: linear-gradient(90deg,#4318FF,#868CFF); }
+.kpi-tile.t-teal::after   { background: linear-gradient(90deg,#01B574,#21AEF3); }
+.kpi-tile.t-orange::after { background: linear-gradient(90deg,#FF9A3C,#FF6B3C); }
+.kpi-tile.t-pink::after   { background: linear-gradient(90deg,#E879F9,#868CFF); }
+
+.kpi-icon-wrap {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  margin-bottom: 14px;
+}
+.kpi-tile.t-purple .kpi-icon-wrap { background: rgba(91,79,232,.15); }
+.kpi-tile.t-teal   .kpi-icon-wrap { background: rgba(45,212,191,.15); }
+.kpi-tile.t-orange .kpi-icon-wrap { background: rgba(251,146,60,.15); }
+.kpi-tile.t-pink   .kpi-icon-wrap { background: rgba(232,121,249,.15); }
+
+.kpi-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.kpi-value { font-size: 30px; font-weight: 800; line-height: 1; }
+.kpi-sub   { font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+.kpi-trend { font-size: 11px; font-weight: 600; }
+.kpi-trend.up   { color: var(--green); }
+.kpi-trend.down { color: var(--red); }
+
+/* ══════════════════════════════════════════
+   PIPELINE
+══════════════════════════════════════════ */
+.pipeline-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  background: var(--card-bg2);
+  border-radius: 10px;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+.p-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%; flex-shrink: 0;
+}
+.p-dot.done    { background: var(--green);  box-shadow: 0 0 8px var(--green); }
+.p-dot.running { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: blink 1.4s infinite; }
+.p-dot.pending { background: var(--border); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.p-bar {
+  margin-left: auto;
+  width: 90px; height: 5px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.p-fill {
+  height: 100%;
+  background: linear-gradient(90deg,var(--accent),var(--accent2));
+  border-radius: 3px;
+}
+.p-label { font-size: 10px; color: var(--muted); width: 28px; text-align: right; }
+
+/* ══════════════════════════════════════════
+   MODULE CARDS
+══════════════════════════════════════════ */
+.module-card {
+  background: linear-gradient(135deg, rgba(27,37,89,.85) 0%, rgba(17,28,68,.9) 100%);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px;
+  padding: 24px;
+  cursor: pointer;
+  transition: all .3s;
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+}
+.module-card::before {
+  content:''; position:absolute; inset:0; border-radius:14px;
+  background: linear-gradient(135deg, rgba(67,24,255,.08) 0%, transparent 60%);
+  opacity:0; transition: opacity .3s;
+}
+.module-card:hover::before { opacity:1; }
+.module-card:hover {
+  border-color: rgba(134,140,255,.35);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(67,24,255,.25), 0 0 0 1px rgba(134,140,255,.15);
+}
+.module-card .m-icon-wrap {
+  width: 50px; height: 50px;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  margin-bottom: 14px;
+}
+.module-card .m-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.module-card .m-desc  { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.module-card .m-footer{ margin-top: 16px; display: flex; align-items: center; justify-content: space-between; }
+.module-card .m-tag {
+  font-size: 10px; font-weight: 600;
+  padding: 3px 10px; border-radius: 20px;
+  border: 1px solid;
+}
+.module-card .m-arrow {
+  font-size: 18px; color: var(--accent);
+  opacity: 0; transition: all .2s;
+  transform: translateX(-4px);
+}
+.module-card:hover .m-arrow { opacity: 1; transform: translateX(0); }
+
+/* ══════════════════════════════════════════
+   PAGE HEADER
+══════════════════════════════════════════ */
+.pg-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.pg-title { font-size: 22px; font-weight: 800; line-height: 1.2; }
+.pg-sub   { font-size: 12px; color: var(--muted); margin-top: 5px; }
+.status-badge {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid;
+}
+.status-badge.green {
+  background: rgba(45,212,191,.1);
+  color: var(--green);
+  border-color: rgba(45,212,191,.3);
+}
+.status-badge.purple {
+  background: rgba(91,79,232,.15);
+  color: var(--accent2);
+  border-color: rgba(91,79,232,.3);
+}
+
+/* ══════════════════════════════════════════
+   个人画像 PAGE
+══════════════════════════════════════════ */
+.user-stat-tile {
+  background: var(--card-bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+.ust-val { font-size: 22px; font-weight: 800; }
+.ust-lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+.tag-pill {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid;
+  margin: 3px;
+}
+
+/* ══════════════════════════════════════════
+   实时模拟 PAGE
+══════════════════════════════════════════ */
+.progress-bar-wrap {
+  background: var(--card-bg2);
+  border-radius: 30px;
+  height: 10px;
+  overflow: hidden;
+  flex: 1;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 30px;
+  background: linear-gradient(90deg, var(--accent), var(--pink));
+  transition: width .8s cubic-bezier(.4,0,.2,1);
+}
+
+.video-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card-bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .2s;
+  margin-bottom: 6px;
+}
+.video-item:hover { border-color: var(--accent); }
+.video-item.clicked { border-color: var(--green); background: rgba(45,212,191,.05); }
+.video-thumb {
+  width: 38px; height: 38px;
+  border-radius: 8px;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.video-score { margin-left: auto; font-weight: 700; color: var(--accent2); font-size: 13px; }
+
+.contrib-row {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; margin-bottom: 10px;
+}
+.contrib-label { width: 55px; color: var(--muted); }
+.contrib-bar-wrap { flex: 1; height: 7px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.contrib-fill { height: 100%; border-radius: 4px; transition: width .8s ease; }
+.contrib-pct  { width: 34px; text-align: right; font-weight: 700; font-size: 12px; }
+
+/* ══════════════════════════════════════════
+   FORCE GRAPH
+══════════════════════════════════════════ */
+.force-wrap {
+  background: var(--bg);
+  border-radius: 12px;
+  overflow: hidden;
+  height: 420px;
+  position: relative;
+}
+#forceGraph { width: 100%; height: 100%; }
+
+/* ══════════════════════════════════════════
+   SCROLLBAR
+══════════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* ══════════════════════════════════════════
+   CHART OVERRIDES
+══════════════════════════════════════════ */
+canvas { max-width: 100%; }
+
+/* ══════════════════════════════════════════
+   UTIL
+══════════════════════════════════════════ */
+.section-label {
+  font-size: 11px; font-weight: 700;
+  color: var(--muted); letter-spacing: 1.5px;
+  text-transform: uppercase; margin-bottom: 14px;
+}
+.divider { border-color: var(--border); margin: 20px 0; }
+.video-list-scroll { max-height: 340px; overflow-y: auto; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     SIDEBAR
+══════════════════════════════════════ -->
+<aside class="sidebar">
+  <!-- Logo -->
+  <div class="sidebar-logo">
+    <div class="logo-icon">🌐</div>
+    <div>
+      <div class="logo-name">Recommendation</div>
+      <div class="logo-sub">DASHBOARD</div>
+    </div>
+  </div>
+
+  <!-- Profile block -->
+  <div class="sidebar-profile">
+
+    <div>
+      <div class="profile-name">KuaiRand-1K</div>
+      <div class="profile-role">快手推荐数据集</div>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <div class="nav-section">主导航</div>
+
+  <div class="nav-link-item active" id="nav-dashboard" onclick="goto('dashboard',this)">
+    <i class="bi bi-grid-1x2-fill nav-icon"></i>
+    Dashboard
+    <span class="nav-badge status-badge green ms-auto" style="font-size:9px;padding:2px 7px">就绪</span>
+  </div>
+
+  <div class="nav-section">功能模块</div>
+
+  <div class="nav-link-item" id="nav-profile" onclick="goto('profile',this)">
+    <i class="bi bi-person-badge nav-icon"></i>
+    个人画像
+    <span class="nav-badge" style="margin-left:auto;font-size:9px;padding:2px 7px;background:rgba(56,189,248,.1);color:var(--cyan);border-radius:10px">B组</span>
+  </div>
+  <div class="nav-link-item" id="nav-simulate" onclick="goto('simulate',this)">
+    <i class="bi bi-lightning-charge-fill nav-icon"></i>
+    实时模拟
+    <span class="nav-badge" style="margin-left:auto;font-size:9px;padding:2px 7px;background:rgba(91,79,232,.15);color:var(--accent2);border-radius:10px">B组</span>
+  </div>
+  <div class="nav-link-item" id="nav-visual" onclick="goto('visual',this)">
+    <i class="bi bi-diagram-3-fill nav-icon"></i>
+    兴趣演化
+    <span class="nav-badge" style="margin-left:auto;font-size:9px;padding:2px 7px;background:rgba(232,121,249,.1);color:var(--pink);border-radius:10px">C组</span>
+  </div>
+
+  <div class="nav-section mt-2">系统</div>
+  <div class="nav-link-item" style="cursor:default;opacity:.6">
+    <i class="bi bi-bar-chart-fill nav-icon"></i>
+    评估指标
+  </div>
+  <div class="nav-link-item" style="cursor:default;opacity:.6">
+    <i class="bi bi-gear-fill nav-icon"></i>
+    系统设置
+  </div>
+
+  <div class="sidebar-footer">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+      <span style="width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);display:inline-block"></span>
+      数据流水线运行中
+    </div>
+    KuaiRand-1K · v1.0 · 2022<br>
+    冷启动 + 兴趣演化推荐系统
+  </div>
+</aside>
+
+<!-- ══════════════════════════════════════
+     TOPBAR
+══════════════════════════════════════ -->
+<nav class="topbar">
+  <div class="topbar-breadcrumb">
+    <i class="bi bi-house-fill" style="font-size:13px"></i>
+    <span class="sep">/</span>
+    <span id="topbar-page" class="current">Dashboard</span>
+  </div>
+  <div class="topbar-right">
+    <div class="topbar-btn" title="刷新">
+      <i class="bi bi-arrow-clockwise"></i>
+    </div>
+    <div class="topbar-btn" title="通知">
+      <i class="bi bi-bell-fill"></i>
+    </div>
+    <div class="topbar-btn" title="全屏">
+      <i class="bi bi-fullscreen"></i>
+    </div>
+    <div class="topbar-user">
+      <div class="topbar-avatar">A</div>
+      <span style="font-size:12px;color:var(--text)">Admin</span>
+      <i class="bi bi-chevron-down" style="font-size:10px;color:var(--muted)"></i>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════ -->
+<div class="main-content">
+<div class="page-content">
+
+
+<!-- ═══════════ DASHBOARD PAGE ═══════════ -->
+<div class="page active" id="page-dashboard">
+
+  <!-- Header -->
+  <div class="pg-header">
+    <div>
+      <div class="pg-title">总览 Dashboard</div>
+      <div class="pg-sub"><i class="bi bi-calendar3 me-1"></i>数据时间跨度 2022/04/08 — 2022/05/08 · KuaiRand-1K</div>
+    </div>
+    <span class="status-badge green"><i class="bi bi-circle-fill me-1" style="font-size:7px"></i>数据已就绪</span>
+  </div>
+
+  <!-- KPI row -->
+  <div class="row g-3 mb-4">
+    <div class="col-xl-3 col-sm-6">
+      <div class="kpi-tile t-purple">
+        <div class="kpi-icon-wrap"><i class="bi bi-people-fill" style="color:var(--accent)"></i></div>
+        <div class="kpi-label">用户总数</div>
+        <div class="kpi-value">1,000</div>
+        <div class="kpi-sub">
+          <span class="kpi-trend up"><i class="bi bi-arrow-up-short"></i>64%</span>
+          full_active 用户
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+      <div class="kpi-tile t-teal">
+        <div class="kpi-icon-wrap"><i class="bi bi-camera-video-fill" style="color:var(--green)"></i></div>
+        <div class="kpi-label">视频总数</div>
+        <div class="kpi-value">4.37M</div>
+        <div class="kpi-sub">
+          <i class="bi bi-tag-fill" style="color:var(--green)"></i>
+          平均 1.23 Tag/视频
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+      <div class="kpi-tile t-orange">
+        <div class="kpi-icon-wrap"><i class="bi bi-graph-up-arrow" style="color:var(--orange)"></i></div>
+        <div class="kpi-label">训练交互</div>
+        <div class="kpi-value">11.7M</div>
+        <div class="kpi-sub">
+          <i class="bi bi-layers-fill" style="color:var(--orange)"></i>
+          标准日志 Phase1 + Phase2
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-sm-6">
+      <div class="kpi-tile t-pink">
+        <div class="kpi-icon-wrap"><i class="bi bi-bullseye" style="color:var(--pink)"></i></div>
+        <div class="kpi-label">无偏测试集</div>
+        <div class="kpi-value">43,028</div>
+        <div class="kpi-sub">
+          <i class="bi bi-shuffle" style="color:var(--pink)"></i>
+          随机曝光 is_rand=1
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts + Pipeline row -->
+  <div class="row g-3 mb-4">
+
+    <!-- Feedback chart -->
+    <div class="col-xl-8">
+      <div class="v-card h-100">
+        <div class="v-card-header">
+          <div class="v-card-title">
+            <i class="bi bi-bar-chart-line-fill icon" style="color:var(--accent)"></i>
+            反馈信号对比分析
+          </div>
+          <span style="font-size:11px;color:var(--muted)">随机曝光 vs 标准Phase1 vs 标准Phase2</span>
+        </div>
+        <div class="v-card-body">
+          <canvas id="feedbackChart" height="200"></canvas>
+        </div>
+        <div class="v-card-footer">
+          <i class="bi bi-info-circle me-1"></i>
+          Phase1→Phase2 点击率下降 <strong>11.4pp</strong>，印证时间衰减建模的必要性 · 随机日志 click=17.4% 为无偏基线
+        </div>
+      </div>
+    </div>
+
+    <!-- Pipeline -->
+    <div class="col-xl-4">
+      <div class="v-card h-100">
+        <div class="v-card-header">
+          <div class="v-card-title">
+            <i class="bi bi-cpu-fill icon" style="color:var(--green)"></i>
+            A组 数据流水线
+          </div>
+          <span class="status-badge green" style="font-size:9px;padding:2px 9px">运行中</span>
+        </div>
+        <div class="v-card-body">
+          <div class="pipeline-item">
+            <div class="p-dot done"></div>
+            <span style="font-size:12px">用户特征清洗</span>
+            <div class="p-bar ms-auto"><div class="p-fill" style="width:100%"></div></div>
+            <span class="p-label">100%</span>
+          </div>
+          <div class="pipeline-item">
+            <div class="p-dot done"></div>
+            <span style="font-size:12px">视频统计特征聚合</span>
+            <div class="p-bar ms-auto"><div class="p-fill" style="width:100%"></div></div>
+            <span class="p-label">100%</span>
+          </div>
+          <div class="pipeline-item">
+            <div class="p-dot done"></div>
+            <span style="font-size:12px">Tag Multi-hot 编码</span>
+            <div class="p-bar ms-auto"><div class="p-fill" style="width:100%"></div></div>
+            <span class="p-label">100%</span>
+          </div>
+          <div class="pipeline-item">
+            <div class="p-dot running"></div>
+            <span style="font-size:12px">交互矩阵构建</span>
+            <div class="p-bar ms-auto"><div class="p-fill" style="width:68%"></div></div>
+            <span class="p-label">68%</span>
+          </div>
+          <div class="pipeline-item">
+            <div class="p-dot pending"></div>
+            <span style="font-size:12px;color:var(--muted)">HR/NDCG 评估</span>
+            <div class="p-bar ms-auto"><div class="p-fill" style="width:0%"></div></div>
+            <span class="p-label" style="color:var(--muted)">—</span>
+          </div>
+        </div>
+        <div class="v-card-footer">
+          <i class="bi bi-database-fill me-1"></i>
+          输出: Parquet × 6 文件 · tag_multihot.npz
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Module entry cards -->
+  <div class="section-label"><i class="bi bi-grid me-1"></i>功能模块入口</div>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="module-card" onclick="goto('profile', document.getElementById('nav-profile'))">
+        <div class="m-icon-wrap" style="background:rgba(56,189,248,.12)">
+          <i class="bi bi-person-badge-fill" style="color:var(--cyan)"></i>
+        </div>
+        <div class="m-title">个人画像</div>
+        <div class="m-desc">用户活跃度分析、人口统计特征可视化、KNN 邻居散点图定位、历史兴趣 Tag 分布</div>
+        <div class="m-footer">
+          <span class="m-tag" style="color:var(--cyan);border-color:rgba(56,189,248,.4);background:rgba(56,189,248,.08)">B组 · KNN</span>
+          <span class="m-arrow"><i class="bi bi-arrow-right"></i></span>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="module-card" onclick="goto('simulate', document.getElementById('nav-simulate'))">
+        <div class="m-icon-wrap" style="background:rgba(91,79,232,.15)">
+          <i class="bi bi-lightning-charge-fill" style="color:var(--accent2)"></i>
+        </div>
+        <div class="m-title">实时模拟</div>
+        <div class="m-desc">冷启动推荐 · 分屏对比通用 vs 个性化 · 点击实时重排 · 桑基图迁移路径可视化</div>
+        <div class="m-footer">
+          <span class="m-tag" style="color:var(--accent2);border-color:rgba(91,79,232,.4);background:rgba(91,79,232,.12)">B组 · Tag相似度</span>
+          <span class="m-arrow"><i class="bi bi-arrow-right"></i></span>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="module-card" onclick="goto('visual', document.getElementById('nav-visual'))">
+        <div class="m-icon-wrap" style="background:rgba(232,121,249,.12)">
+          <i class="bi bi-diagram-3-fill" style="color:var(--pink)"></i>
+        </div>
+        <div class="m-title">兴趣演化</div>
+        <div class="m-desc">D3.js 力导向图 · Markov 转移概率 · 时间轴回放 · 科幻粒子特效全屏模式</div>
+        <div class="m-footer">
+          <span class="m-tag" style="color:var(--pink);border-color:rgba(232,121,249,.4);background:rgba(232,121,249,.1)">C组 · Markov链</span>
+          <span class="m-arrow"><i class="bi bi-arrow-right"></i></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /dashboard page -->
+
+
+<!-- ═══════════ 个人画像 PAGE ═══════════ -->
+<div class="page" id="page-profile">
+
+  <div class="pg-header">
+    <div>
+      <div class="pg-title">个人画像</div>
+      <div class="pg-sub">用户特征分析 · KNN 邻居定位 · 历史兴趣分布</div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span style="font-size:12px;color:var(--muted)">选择用户</span>
+      <select onchange="updateProfile(this.value)" class="form-select form-select-sm"
+              style="background:var(--card-bg);border-color:var(--border);color:var(--text);width:auto">
+        <option value="42">User #42 · full_active</option>
+        <option value="128">User #128 · high_active</option>
+        <option value="307">User #307 · middle_active</option>
+        <option value="512">User #512 · full_active</option>
+        <option value="888">User #888 · low_active</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Stat tiles -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="user-stat-tile">
+        <div class="ust-val" id="u-follow" style="color:var(--accent2)">523</div>
+        <div class="ust-lbl"><i class="bi bi-person-plus me-1"></i>关注数</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="user-stat-tile">
+        <div class="ust-val" id="u-fans" style="color:var(--green)">1,240</div>
+        <div class="ust-lbl"><i class="bi bi-people me-1"></i>粉丝数</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="user-stat-tile">
+        <div class="ust-val" id="u-days" style="color:var(--orange)">892</div>
+        <div class="ust-lbl"><i class="bi bi-calendar-check me-1"></i>注册天数</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="user-stat-tile">
+        <div class="ust-val" id="u-active" style="color:var(--cyan)">full</div>
+        <div class="ust-lbl"><i class="bi bi-activity me-1"></i>活跃等级</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <!-- Tag 分布 -->
+    <div class="col-xl-7">
+      <div class="v-card h-100">
+        <div class="v-card-header">
+          <div class="v-card-title">
+            <i class="bi bi-tags-fill icon" style="color:var(--orange)"></i>
+            历史兴趣 Tag 分布
+          </div>
+          <span style="font-size:11px;color:var(--muted)">基于 long_view 行为加权</span>
+        </div>
+        <div class="v-card-body" style="display:flex;align-items:center;gap:32px;">
+          <!-- 左：圆环 + 中心标签 -->
+          <div style="position:relative;width:180px;height:180px;flex-shrink:0;">
+            <canvas id="tagChart" width="180" height="180"></canvas>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;">
+              <div style="font-size:26px;font-weight:700;color:#fff;line-height:1.1" id="tagCenterVal">100</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:3px">兴趣标签</div>
+            </div>
+          </div>
+          <!-- 右：图例列表 -->
+          <div id="tagLegend" style="flex:1;display:flex;flex-direction:column;gap:12px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KNN 散点 -->
+    <div class="col-xl-5">
+      <div class="v-card h-100">
+        <div class="v-card-header">
+          <div class="v-card-title">
+            <i class="bi bi-diagram-2-fill icon" style="color:var(--pink)"></i>
+            KNN 邻居定位
+          </div>
+          <span style="font-size:11px;color:var(--muted)">人口统计余弦相似度</span>
+        </div>
+        <div class="v-card-body">
+          <canvas id="knnChart" height="220"></canvas>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">
+            <i class="bi bi-circle-fill me-1" style="color:var(--pink)"></i>当前用户
+            <i class="bi bi-circle-fill ms-2 me-1" style="color:var(--accent)"></i>最近邻居 (sim > 0.85)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Radar -->
+  <div class="v-card">
+    <div class="v-card-header">
+      <div class="v-card-title">
+        <i class="bi bi-pentagon-fill icon" style="color:var(--cyan)"></i>
+        用户特征雷达
+      </div>
+      <span style="font-size:11px;color:var(--muted)">归一化特征维度对比</span>
+    </div>
+    <div class="v-card-body">
+      <canvas id="radarChart" height="180"></canvas>
+    </div>
+  </div>
+
+</div><!-- /profile -->
+
+
+<!-- ═══════════ 实时模拟 PAGE ═══════════ -->
+<div class="page" id="page-simulate">
+
+  <div class="pg-header">
+    <div>
+      <div class="pg-title">实时模拟 · 冷启动</div>
+      <div class="pg-sub">Tag Multi-hot余弦相似度 + 人口统计KNN · 每次点击后推荐列表实时重排</div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <select class="form-select form-select-sm"
+              style="background:var(--card-bg);border-color:var(--border);color:var(--text);width:auto">
+        <option>User #42 · 新用户冷启动</option>
+        <option>User #128</option>
+      </select>
+      <span class="status-badge purple" id="simBadge"><i class="bi bi-circle-fill me-1" style="font-size:7px"></i>等待点击</span>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="v-card mb-3">
+    <div class="v-card-body" style="padding:16px 20px">
+      <div class="d-flex align-items-center gap-3">
+        <i class="bi bi-speedometer2" style="color:var(--accent);font-size:18px"></i>
+        <span style="font-size:12px;color:var(--muted);white-space:nowrap">个性化进度</span>
+        <div class="progress-bar-wrap"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+        <span style="font-size:15px;font-weight:800;color:var(--accent2);min-width:40px" id="progressText">0%</span>
+        <span style="font-size:11px;color:var(--muted)">α = 0.30 · 点击视频提升</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Split screen -->
+  <div class="row g-3 mb-3">
+    <div class="col-md-6">
+      <div class="v-card h-100">
+        <div class="v-card-header">
+          <div class="v-card-title">
+            <i class="bi bi-list-ul icon" style="color:var(--muted)"></i>
+            通用推荐
+          </div>
+          <span style="font-size:11px;color:var(--muted)">无个性化 · 热门排序</span>
+        </div>
+        <div class="v-card-body">
+          <div class="video-list-scroll" id="generalList"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="v-card h-100" style="border-color:rgba(91,79,232,.4)">
+        <div class="v-card-header" style="border-color:rgba(91,79,232,.25)">
+          <div class="v-card-title">
+            <i class="bi bi-lightning-charge-fill icon" style="color:var(--accent2)"></i>
+            快速个性化推荐
+          </div>
+          <span class="status-badge purple" style="font-size:9px;padding:2px 8px">实时重排</span>
+        </div>
+        <div class="v-card-body">
+          <div class="video-list-scroll" id="personalList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contribution + Sankey -->
+  <div class="row g-3">
+    <div class="col-md-5">
+      <div class="v-card h-100">
+        <div class="v-card-header">
+          <div class="v-card-title">
+            <i class="bi bi-pie-chart-fill icon" style="color:var(--green)"></i>
+            辅助域知识贡献度
+          </div>
+          <span style="font-size:11px;color:var(--muted)">实时更新</span>
+        </div>
+        <div class="v-card-body">
+          <div id="contribBars">
+            <div class="contrib-row">
+              <span class="contrib-label">娱乐</span>
+              <div class="contrib-bar-wrap"><div class="contrib-fill" id="c-ent" style="width:33%;background:var(--accent)"></div></div>
+              <span class="contrib-pct" id="cp-ent" style="color:var(--accent)">33%</span>
+            </div>
+            <div class="contrib-row">
+              <span class="contrib-label">生活</span>
+              <div class="contrib-bar-wrap"><div class="contrib-fill" id="c-life" style="width:33%;background:var(--green)"></div></div>
+              <span class="contrib-pct" id="cp-life" style="color:var(--green)">33%</span>
+            </div>
+            <div class="contrib-row">
+              <span class="contrib-label">游戏</span>
+              <div class="contrib-bar-wrap"><div class="contrib-fill" id="c-game" style="width:34%;background:var(--orange)"></div></div>
+              <span class="contrib-pct" id="cp-game" style="color:var(--orange)">34%</span>
+            </div>
+          </div>
+          <canvas id="contribChart" height="120" class="mt-3"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-7">
+      <div class="v-card h-100">
+        <div class="v-card-header">
+          <div class="v-card-title">
+            <i class="bi bi-arrow-left-right icon" style="color:var(--cyan)"></i>
+            迁移路径桑基图
+          </div>
+          <span style="font-size:11px;color:var(--muted)">辅助域 → 用户兴趣 → 推荐类别</span>
+        </div>
+        <div class="v-card-body" style="padding:12px">
+          <svg id="sankeySvg" width="100%" height="200"></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /simulate -->
+
+
+<!-- ═══════════ 可视化 PAGE ═══════════ -->
+<div class="page" id="page-visual">
+
+  <div class="pg-header">
+    <div>
+      <div class="pg-title">兴趣演化可视化</div>
+      <div class="pg-sub">Markov 链转移概率 · 时间衰减 w(t)=exp(-λΔt) · D3.js 力导向图</div>
+    </div>
+    <a href="interest_evolution.html" target="_blank"
+       style="display:inline-flex;align-items:center;gap:8px;padding:9px 18px;
+              background:linear-gradient(135deg,#5B4FE8,#9977ff);
+              border-radius:10px;color:#fff;font-size:13px;font-weight:700;
+              text-decoration:none;box-shadow:0 4px 20px var(--accent-glow);
+              transition:all .2s"
+       onmouseover="this.style.transform='translateY(-2px)'"
+       onmouseout="this.style.transform='translateY(0)'">
+      <i class="bi bi-fullscreen"></i> 全屏科幻模式
+    </a>
+  </div>
+
+  <!-- 嵌入科幻兴趣演化页 -->
+  <div style="position:relative; border-radius:16px; overflow:hidden;
+              border:1px solid rgba(134,140,255,.2);
+              box-shadow:0 0 40px rgba(67,24,255,.15), 0 0 0 1px rgba(134,140,255,.08);
+              height: calc(100vh - 200px); min-height: 540px;">
+    <iframe src="interest_evolution.html"
+            style="width:100%; height:100%; border:none; display:block;"
+            allow="autoplay">
+    </iframe>
+    <!-- 右下角提示 -->
+    <div style="position:absolute; bottom:12px; right:16px; z-index:10;
+                font-size:10px; color:rgba(134,140,255,.5); pointer-events:none;
+                letter-spacing:.5px; font-family:'Segoe UI',sans-serif">
+      嵌入预览 · 点击「全屏科幻模式」获得完整体验
+    </div>
+  </div>
+
+</div><!-- /visual -->
+
+
+</div><!-- /page-content -->
+</div><!-- /main-content -->
+
+
+<!-- ══════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ═══════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════
+const PAGE_LABELS = {
+  dashboard: 'Dashboard',
+  profile:   '个人画像',
+  simulate:  '实时模拟',
+  visual:    '兴趣演化'
+}
+function goto(pageId, navEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+  document.querySelectorAll('.nav-link-item').forEach(n => n.classList.remove('active'))
+  document.getElementById('page-' + pageId).classList.add('active')
+  navEl.classList.add('active')
+  document.getElementById('topbar-page').textContent = PAGE_LABELS[pageId]
+  if (pageId === 'simulate') initSimulate()
+  if (pageId === 'profile')  initProfileCharts()
+}
+
+// ═══════════════════════════════════════
+// FEEDBACK CHART (Dashboard)
+// ═══════════════════════════════════════
+Chart.defaults.color = '#6A6A90'
+Chart.defaults.borderColor = '#252545'
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif"
+
+;(function initFeedbackChart() {
+  const ctx = document.getElementById('feedbackChart').getContext('2d')
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['点击率 (CTR)', '长观看率', '点赞率', '播放进度均值'],
+      datasets: [
+        {
+          label: '随机曝光 (无偏)',
+          data: [17.4, 8.4, 0.56, 16.8],
+          backgroundColor: 'rgba(56,189,248,.6)',
+          borderColor: '#38BDF8',
+          borderWidth: 1,
+          borderRadius: 5,
+        },
+        {
+          label: '标准推荐 Phase1',
+          data: [42.6, 30.5, 0.52, 16.8],
+          backgroundColor: 'rgba(91,79,232,.7)',
+          borderColor: '#5B4FE8',
+          borderWidth: 1,
+          borderRadius: 5,
+        },
+        {
+          label: '标准推荐 Phase2',
+          data: [31.2, 22.1, 0.28, 16.8],
+          backgroundColor: 'rgba(232,121,249,.6)',
+          borderColor: '#E879F9',
+          borderWidth: 1,
+          borderRadius: 5,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, padding: 16, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}%` } }
+      },
+      scales: {
+        x: { grid: { color: '#252545' } },
+        y: {
+          grid: { color: '#252545' },
+          ticks: { callback: v => v + '%' }
+        }
+      }
+    }
+  })
+})()
+
+// ═══════════════════════════════════════
+// PROFILE CHARTS
+// ═══════════════════════════════════════
+let profileChartsInited = false
+function initProfileCharts() {
+  if (profileChartsInited) return
+  profileChartsInited = true
+
+  // Tag donut
+  ;(function() {
+    const TAG_LABELS = ['娱乐', '生活', '美食', '游戏', '教育']
+    const TAG_VALUES = [38, 24, 18, 12, 8]
+    const TAG_COLORS = ['#4318FF', '#21AEF3', '#01B574', '#FF9A3C', '#868CFF']
+
+    // 渲染图例：圆点 + 名字 + 进度条 + 百分比（全部在同一行）
+    const legend = document.getElementById('tagLegend')
+    TAG_LABELS.forEach((lbl, i) => {
+      const pct = TAG_VALUES[i]
+      const row = document.createElement('div')
+      row.style.cssText = 'display:grid;grid-template-columns:10px 36px 1fr 34px;align-items:center;gap:8px;'
+      row.innerHTML = `
+        <span style="width:10px;height:10px;border-radius:50%;background:${TAG_COLORS[i]};display:inline-block;"></span>
+        <span style="font-size:12px;color:#cbd5e1;">${lbl}</span>
+        <div style="height:4px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${TAG_COLORS[i]};border-radius:4px;"></div>
+        </div>
+        <span style="font-size:12px;color:#64748b;text-align:right;">${pct}%</span>`
+      legend.appendChild(row)
+    })
+
+    const tagCtx = document.getElementById('tagChart').getContext('2d')
+    new Chart(tagCtx, {
+      type: 'doughnut',
+      data: {
+        labels: TAG_LABELS,
+        datasets: [{
+          data: TAG_VALUES,
+          backgroundColor: TAG_COLORS,
+          borderColor: '#111C44',   // 用卡片背景色做"缓冲间隙"
+          borderWidth: 3,
+          borderRadius: 6,          // 圆弧两端圆角
+          hoverOffset: 8
+        }]
+      },
+      options: {
+        responsive: false,
+        animation: { animateRotate: true, duration: 900 },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(11,20,55,.9)',
+            borderColor: 'rgba(134,140,255,.3)',
+            borderWidth: 1,
+            callbacks: {
+              label: ctx => `  ${ctx.label}  ${ctx.parsed}%`
+            }
+          }
+        },
+        cutout: '74%'
+      }
+    })
+  })()
+
+  // Radar
+  const radarCtx = document.getElementById('radarChart').getContext('2d')
+  new Chart(radarCtx, {
+    type: 'radar',
+    data: {
+      labels: ['活跃度', '社交网络', '内容创作', '注册时长', '互动深度', '关注广度'],
+      datasets: [
+        {
+          label: 'User #42',
+          data: [90, 65, 80, 75, 55, 70],
+          backgroundColor: 'rgba(91,79,232,.25)',
+          borderColor: '#5B4FE8',
+          pointBackgroundColor: '#5B4FE8',
+          borderWidth: 2,
+        },
+        {
+          label: '平均用户',
+          data: [50, 50, 50, 50, 50, 50],
+          backgroundColor: 'rgba(255,255,255,.04)',
+          borderColor: '#252545',
+          pointBackgroundColor: '#252545',
+          borderWidth: 1,
+          borderDash: [4, 4]
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        r: {
+          min: 0, max: 100,
+          grid: { color: '#252545' },
+          angleLines: { color: '#252545' },
+          ticks: { display: false },
+          pointLabels: { font: { size: 11 }, color: '#6A6A90' }
+        }
+      },
+      plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } } }
+    }
+  })
+
+  // KNN canvas
+  drawKNN(42)
+}
+
+function drawKNN(uid) {
+  const canvas = document.getElementById('knnChart')
+  const ctx = canvas.getContext('2d')
+  const W = canvas.width = canvas.parentElement.offsetWidth - 40
+  const H = canvas.height = 220
+  ctx.clearRect(0,0,W,H)
+  ctx.fillStyle = '#0B1437'
+  ctx.fillRect(0,0,W,H)
+
+  // Random points
+  const pts = Array.from({length:40}, () => ({
+    x: Math.random()*W, y: Math.random()*H,
+    near: Math.random() < 0.25
+  }))
+  pts.forEach(p => {
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.near ? 5 : 3, 0, Math.PI*2)
+    if (p.near) {
+      ctx.fillStyle = '#5B4FE8'
+      ctx.shadowColor = '#5B4FE8'; ctx.shadowBlur = 10
+      // Draw connection line to center
+      ctx.fill()
+      ctx.shadowBlur = 0
+      ctx.beginPath()
+      ctx.moveTo(W/2, H/2); ctx.lineTo(p.x, p.y)
+      ctx.strokeStyle = 'rgba(91,79,232,.3)'; ctx.lineWidth = 1
+      ctx.stroke()
+    } else {
+      ctx.fillStyle = '#252545'
+      ctx.fill()
+    }
+    ctx.shadowBlur = 0
+  })
+  // Current user
+  ctx.beginPath(); ctx.arc(W/2, H/2, 10, 0, Math.PI*2)
+  ctx.fillStyle = '#E879F9'
+  ctx.shadowColor = '#E879F9'; ctx.shadowBlur = 20
+  ctx.fill(); ctx.shadowBlur = 0
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'
+  ctx.fillText(`User #${uid}`, W/2, H/2 + 24)
+}
+
+function updateProfile(uid) {
+  const data = {
+    42:  {follow:523,  fans:1240, days:892,  active:'full'},
+    128: {follow:210,  fans:4520, days:1450, active:'high'},
+    307: {follow:89,   fans:340,  days:620,  active:'mid'},
+    512: {follow:1200, fans:8900, days:2100, active:'full'},
+    888: {follow:12,   fans:5,    days:45,   active:'low'},
+  }
+  const u = data[uid] || data[42]
+  document.getElementById('u-follow').textContent = u.follow.toLocaleString()
+  document.getElementById('u-fans').textContent   = u.fans.toLocaleString()
+  document.getElementById('u-days').textContent   = u.days
+  document.getElementById('u-active').textContent = u.active
+  drawKNN(uid)
+}
+
+// ═══════════════════════════════════════
+// SIMULATE PAGE
+// ═══════════════════════════════════════
+const videos = [
+  {id:1, emoji:'🎮', title:'原神攻略·深境螺旋',   tag:'游戏', score:0.91},
+  {id:2, emoji:'🍜', title:'家常红烧肉做法',       tag:'美食', score:0.88},
+  {id:3, emoji:'😂', title:'搞笑合集2022',         tag:'娱乐', score:0.85},
+  {id:4, emoji:'🏋️', title:'居家健身30分钟',       tag:'生活', score:0.83},
+  {id:5, emoji:'📱', title:'iPhone14评测',         tag:'科技', score:0.79},
+  {id:6, emoji:'🎵', title:'周杰伦新歌MV',          tag:'音乐', score:0.77},
+  {id:7, emoji:'🐱', title:'猫咪日常vlog',          tag:'宠物', score:0.74},
+  {id:8, emoji:'🎬', title:'2022春季大片推荐',      tag:'娱乐', score:0.71},
+]
+let clickCount = 0
+
+function initSimulate() {
+  clickCount = 0
+  renderList('generalList', videos, false)
+  renderList('personalList', [...videos].sort(()=>Math.random()-.5), true)
+  updateProgress(0)
+}
+
+function renderList(id, list, clickable) {
+  document.getElementById(id).innerHTML = list.map(v => `
+    <div class="video-item" id="${id}-${v.id}" ${clickable ? `onclick="onVideoClick(${v.id})"` : ''}>
+      <div class="video-thumb">${v.emoji}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${v.title}</div>
+        <div style="color:var(--muted);font-size:11px;margin-top:2px">#${v.tag}</div>
+      </div>
+      <div class="video-score">${v.score.toFixed(2)}</div>
+    </div>
+  `).join('')
+}
+
+function onVideoClick(vid) {
+  clickCount++
+  const items = document.querySelectorAll('#personalList .video-item')
+  const el = items[Math.floor(Math.random() * items.length)]
+  if (el) { el.classList.add('clicked'); setTimeout(()=>el.classList.remove('clicked'), 900) }
+
+  const pct = Math.min(clickCount * 10, 80)
+  updateProgress(pct)
+  updateContribs(clickCount)
+
+  const shuffled = [...videos]
+    .map(v => ({...v, score: Math.max(.5, v.score + (Math.random()-.3)*.15)}))
+    .sort((a,b) => b.score - a.score)
+  renderList('personalList', shuffled, true)
+
+  const badge = document.getElementById('simBadge')
+  badge.innerHTML = `<i class="bi bi-circle-fill me-1" style="font-size:7px"></i>已点击 ${clickCount} 次`
+  badge.className = 'status-badge purple'
+
+  drawSankey()
+}
+
+function updateProgress(pct) {
+  document.getElementById('progressFill').style.width = pct + '%'
+  document.getElementById('progressText').textContent = pct + '%'
+  const alpha = (0.3 + 0.05 * Math.min(clickCount, 10)).toFixed(2)
+  document.querySelector('.pg-sub').innerHTML =
+    `Tag Multi-hot余弦相似度 + 人口统计KNN · α = <strong style="color:var(--accent2)">${alpha}</strong> · 每次点击后推荐列表实时重排`
+}
+
+function updateContribs(n) {
+  const ent  = Math.min(20 + n*5, 55)
+  const life = Math.max(15, 33 - n*2)
+  const game = 100 - ent - life
+  ;[['ent',ent,'var(--accent)'],['life',life,'var(--green)'],['game',game,'var(--orange)']].forEach(([k,v,c])=>{
+    document.getElementById('c-'+k).style.width  = v+'%'
+    document.getElementById('cp-'+k).textContent = v+'%'
+  })
+}
+
+// Sankey (D3 simple)
+function drawSankey() {
+  const svg = d3.select('#sankeySvg')
+  const W = +svg.node().getBoundingClientRect().width || 400
+  const H = 200
+  svg.attr('viewBox', `0 0 ${W} ${H}`)
+  svg.selectAll('*').remove()
+
+  const cols = [
+    { x: W*0.1, nodes:[{label:'娱乐',pct:45},{label:'生活',pct:30},{label:'游戏',pct:25}] },
+    { x: W*0.5, nodes:[{label:'用户兴趣',pct:100}] },
+    { x: W*0.9, nodes:[{label:'推荐',pct:60},{label:'次推荐',pct:40}] },
+  ]
+
+  const ent  = parseInt(document.getElementById('cp-ent').textContent)
+  const life = parseInt(document.getElementById('cp-life').textContent)
+  const game = parseInt(document.getElementById('cp-game').textContent)
+  cols[0].nodes = [{label:'娱乐',pct:ent},{label:'生活',pct:life},{label:'游戏',pct:game}]
+
+  const colors = ['#5B4FE8','#2DD4BF','#FB923C','#E879F9','#38BDF8']
+
+  cols.forEach((col, ci) => {
+    let y = 20
+    col.nodes.forEach((nd, ni) => {
+      const h = Math.max(20, nd.pct * 1.5)
+      nd.y = y; nd.h = h; nd.x = col.x
+      const rect = svg.append('rect')
+        .attr('x', col.x - 35).attr('y', y)
+        .attr('width', 70).attr('height', h)
+        .attr('rx', 4)
+        .attr('fill', colors[(ci*3+ni)%colors.length])
+        .attr('opacity', .75)
+      svg.append('text')
+        .attr('x', col.x).attr('y', y + h/2 + 4)
+        .attr('text-anchor','middle').attr('fill','#fff')
+        .attr('font-size', 10).attr('font-weight', 700)
+        .text(nd.label)
+      y += h + 10
+    })
+  })
+
+  // Links col0→col1
+  cols[0].nodes.forEach(src => {
+    const tgt = cols[1].nodes[0]
+    const path = d3.path()
+    path.moveTo(src.x+35, src.y + src.h/2)
+    path.bezierCurveTo(
+      (src.x+35+tgt.x-35)/2, src.y + src.h/2,
+      (src.x+35+tgt.x-35)/2, tgt.y + tgt.h/2,
+      tgt.x-35, tgt.y + tgt.h/2
+    )
+    svg.insert('path','rect')
+      .attr('d', path.toString())
+      .attr('fill','none')
+      .attr('stroke', colors[cols[0].nodes.indexOf(src)])
+      .attr('stroke-width', Math.max(2, src.pct/10))
+      .attr('opacity', .4)
+  })
+  // Links col1→col2
+  cols[1].nodes.forEach(src => {
+    cols[2].nodes.forEach((tgt,ti) => {
+      const path = d3.path()
+      path.moveTo(src.x+35, src.y + src.h*(ti===0?.3:.7))
+      path.bezierCurveTo(
+        (src.x+35+tgt.x-35)/2, src.y + src.h*(ti===0?.3:.7),
+        (src.x+35+tgt.x-35)/2, tgt.y + tgt.h/2,
+        tgt.x-35, tgt.y + tgt.h/2
+      )
+      svg.insert('path','rect')
+        .attr('d', path.toString())
+        .attr('fill','none')
+        .attr('stroke', colors[3+ti])
+        .attr('stroke-width', Math.max(2, tgt.pct/10))
+        .attr('opacity', .4)
+    })
+  })
+}
+
+// (Force graph removed — visual page now embeds interest_evolution.html via iframe)
+
+const graphData = [
+  {
+    nodes:[
+      {id:'娱乐',  r:22, active:true},  {id:'生活',  r:18, active:true},
+      {id:'游戏',  r:14, active:true},  {id:'美食',  r:12, active:true},
+      {id:'音乐',  r:16, active:true},  {id:'教育',  r:10, active:false},
+      {id:'科技',  r:9,  active:false}, {id:'宠物',  r:8,  active:false},
+    ],
+    links:[
+      {source:'娱乐',target:'音乐',  prob:.45},
+      {source:'娱乐',target:'生活',  prob:.30},
+      {source:'游戏',target:'娱乐',  prob:.40},
+      {source:'生活',target:'美食',  prob:.55},
+      {source:'音乐',target:'教育',  prob:.20},
+      {source:'游戏',target:'科技',  prob:.35},
+      {source:'美食',target:'宠物',  prob:.25},
+    ]
+  },
+  {
+    nodes:[
+      {id:'科技',  r:22, active:true},  {id:'游戏',  r:20, active:true},
+      {id:'体育',  r:15, active:true},  {id:'娱乐',  r:12, active:true},
+      {id:'美食',  r:8,  active:false}, {id:'旅行',  r:10, active:false},
+    ],
+    links:[
+      {source:'科技',target:'游戏',  prob:.50},
+      {source:'游戏',target:'体育',  prob:.35},
+      {source:'体育',target:'娱乐',  prob:.28},
+      {source:'科技',target:'旅行',  prob:.22},
+    ]
+  },
+  {
+    nodes:[
+      {id:'美食',  r:24, active:true},  {id:'生活',  r:20, active:true},
+      {id:'宠物',  r:16, active:true},  {id:'旅行',  r:14, active:true},
+      {id:'娱乐',  r:10, active:false}, {id:'教育',  r:8,  active:false},
+    ],
+    links:[
+      {source:'美食',target:'生活',  prob:.48},
+      {source:'生活',target:'宠物',  prob:.42},
+      {source:'旅行',target:'生活',  prob:.30},
+      {source:'宠物',target:'娱乐',  prob:.18},
+    ]
+  }
+]
+
+
+// ═══════════════════════════════════════
+// TIMELINE
+// ═══════════════════════════════════════
+const dates = []
+for (let d=8; d<=38; d++) {
+  const m   = d<=21 ? 4 : 5
+  const day = d<=21 ? d : d-21
+  dates.push(`2022-0${m}-${String(day).padStart(2,'0')}`)
+}
+function onSlider(val) {
+  document.getElementById('timeLabel').textContent = dates[+val] || '2022-04-08'
+  if (simulation) simulation.alpha(.3).restart()
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+initSimulate()
+drawSankey()
+window.addEventListener('load', () => {
+  initProfileCharts()
+})
+</script>
+</body>
+</html>
