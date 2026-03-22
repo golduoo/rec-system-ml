@@ -14,7 +14,7 @@ router = APIRouter()
 def list_users():
     art = get_artifact()
     users = art.get("train_users", [])
-    return {"users": users[:200]}   # 最多返回200个，够下拉用
+    return {"users": users[:200]}   # cap at 200 for dropdown use
 
 
 @router.get("/user/{user_id}/profile")
@@ -30,7 +30,7 @@ def user_profile(user_id: int):
 
     tag_profile = get_user_tag_profile(user_id)
 
-    # 活跃度：点击数相对于训练集用户的分位数（简单估算）
+    # Activity percentile: click count ranked against all training users
     all_counts = [len(v) for v in item_knn.user_histories.values()]
     all_counts.sort()
     rank = sum(1 for c in all_counts if c <= click_count)

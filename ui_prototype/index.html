@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -61,10 +61,10 @@
     Live Simulate
     <span class="nav-badge" style="margin-left:auto;font-size:9px;padding:2px 7px;background:rgba(91,79,232,.15);color:var(--accent2);border-radius:10px">B</span>
   </div>
-  <div class="nav-link-item" id="nav-visual" onclick="goto('visual',this)">
+  <div class="nav-link-item" id="nav-interest-graph" onclick="goto('interest-graph',this)">
     <i class="bi bi-diagram-3-fill nav-icon"></i>
-    Interest Evo
-    <span class="nav-badge" style="margin-left:auto;font-size:9px;padding:2px 7px;background:rgba(232,121,249,.1);color:var(--pink);border-radius:10px">C</span>
+    Interest Graph
+    <span class="nav-badge" style="margin-left:auto;font-size:9px;padding:2px 7px;background:rgba(192,122,255,.15);color:#c07aff;border-radius:10px">C</span>
   </div>
 
   <div class="nav-section mt-2">System</div>
@@ -83,7 +83,7 @@
       Pipeline Running
     </div>
     KuaiRand-1K · v1.0 · 2022<br>
-    Cold-Start + Interest Evo Rec-Sys
+    Cold-Start Rec-Sys
   </div>
 </aside>
 
@@ -520,47 +520,177 @@
     </div>
   </div>
 
+
+
 </div><!-- /simulate -->
 
 
-<!-- ═══════════ VISUALIZATION PAGE ═══════════ -->
-<div class="page" id="page-visual">
+
+<!-- ═══════════ Interest Graph PAGE ═══════════ -->
+<div class="page" id="page-interest-graph">
 
   <div class="pg-header">
     <div>
-      <div class="pg-title">Interest Evolution Visualization</div>
-      <div class="pg-sub">Markov chain transition prob. · time-decay w(t)=exp(-λΔt) · D3.js force-directed</div>
+      <div class="pg-title">Interest Graph</div>
+      <div class="pg-sub">User interest evolution · Time-decay encoding · Markov transition · Mutation detection</div>
     </div>
-    <a href="interest_evolution.html" target="_blank"
-       style="display:inline-flex;align-items:center;gap:8px;padding:9px 18px;
-              background:linear-gradient(135deg,#5B4FE8,#9977ff);
-              border-radius:10px;color:#fff;font-size:13px;font-weight:700;
-              text-decoration:none;box-shadow:0 4px 20px var(--accent-glow);
-              transition:all .2s"
-       onmouseover="this.style.transform='translateY(-2px)'"
-       onmouseout="this.style.transform='translateY(0)'">
-      <i class="bi bi-fullscreen"></i> Fullscreen Sci-Fi Mode
-    </a>
-  </div>
-
-  <!-- Embedded Sci-Fi Interest Evo page -->
-  <div style="position:relative; border-radius:16px; overflow:hidden;
-              border:1px solid rgba(134,140,255,.2);
-              box-shadow:0 0 40px rgba(67,24,255,.15), 0 0 0 1px rgba(134,140,255,.08);
-              height: calc(100vh - 200px); min-height: 540px;">
-    <iframe src="interest_evolution.html"
-            style="width:100%; height:100%; border:none; display:block;"
-            allow="autoplay">
-    </iframe>
-    <!-- Bottom-right hint -->
-    <div style="position:absolute; bottom:12px; right:16px; z-index:10;
-                font-size:10px; color:rgba(134,140,255,.5); pointer-events:none;
-                letter-spacing:.5px; font-family:'Segoe UI',sans-serif">
-      Preview embedded · click "Fullscreen Sci-Fi Mode" for full experience
+    <div class="d-flex align-items-center gap-2">
+      <span style="font-size:12px;color:var(--muted)">Select User</span>
+      <select id="igUserSelect" onchange="onIgUserChange(this.value)"
+              class="form-select form-select-sm"
+              style="background:var(--card-bg);border-color:var(--border);color:var(--text);width:auto">
+        <option value="42">User #42</option>
+      </select>
+      <button onclick="generateIgGraph()" id="igGenBtn"
+              class="btn btn-sm"
+              style="background:rgba(192,122,255,.25);color:#c07aff;border:1px solid rgba(192,122,255,.4);
+                     border-radius:8px;padding:4px 16px;font-size:12px;font-weight:600">
+        <i class="bi bi-lightning-charge-fill me-1"></i>Generate Graph
+      </button>
+      <span class="status-badge purple" id="igBadge">
+        <i class="bi bi-circle-fill me-1" style="font-size:7px"></i>Ready
+      </span>
     </div>
   </div>
 
-</div><!-- /visual -->
+  <!-- KPI row -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="kpi-tile" style="border-color:rgba(44,255,170,.15)">
+        <div class="kpi-icon-wrap" style="background:rgba(44,255,170,.1)">
+          <i class="bi bi-circle-fill" style="color:#2cffaa;font-size:18px"></i>
+        </div>
+        <div class="kpi-label">Active Interests</div>
+        <div class="kpi-value" id="ig-kpi-active" style="color:#2cffaa">—</div>
+        <div class="kpi-sub">recent high-engagement tags</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-tile" style="border-color:rgba(255,74,74,.15)">
+        <div class="kpi-icon-wrap" style="background:rgba(255,74,74,.1)">
+          <i class="bi bi-exclamation-triangle-fill" style="color:#ff4a4a;font-size:18px"></i>
+        </div>
+        <div class="kpi-label">Mutations Detected</div>
+        <div class="kpi-value" id="ig-kpi-mut" style="color:#ff4a4a">—</div>
+        <div class="kpi-sub">Z-test burst (Z&gt;2.0)</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-tile" style="border-color:rgba(192,122,255,.15)">
+        <div class="kpi-icon-wrap" style="background:rgba(192,122,255,.1)">
+          <i class="bi bi-stars" style="color:#c07aff;font-size:18px"></i>
+        </div>
+        <div class="kpi-label">Predicted Next</div>
+        <div class="kpi-value" id="ig-kpi-pred" style="color:#c07aff">—</div>
+        <div class="kpi-sub">co-occurrence predicted tags</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-tile" style="border-color:rgba(94,234,255,.15)">
+        <div class="kpi-icon-wrap" style="background:rgba(94,234,255,.1)">
+          <i class="bi bi-bezier2" style="color:#5eeaff;font-size:18px"></i>
+        </div>
+        <div class="kpi-label">Transitions (Edges)</div>
+        <div class="kpi-value" id="ig-kpi-edges" style="color:#5eeaff">—</div>
+        <div class="kpi-sub">Markov P(src→tgt)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main content: Legend + Graph -->
+  <div class="row g-3">
+
+    <!-- Legend -->
+    <div class="col-xl-2 col-md-3">
+      <div class="v-card h-100">
+        <div class="v-card-header">
+          <div class="v-card-title">
+            <i class="bi bi-info-circle-fill icon" style="color:#c07aff"></i>
+            Legend
+          </div>
+        </div>
+        <div class="v-card-body" style="display:flex;flex-direction:column;gap:16px;padding:18px 16px">
+          <div style="display:flex;align-items:flex-start;gap:9px">
+            <span style="width:12px;height:12px;border-radius:50%;background:#2cffaa;box-shadow:0 0 8px #2cffaa;
+                         flex-shrink:0;margin-top:2px;display:inline-block"></span>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text)">Active</div>
+              <div style="font-size:10px;color:var(--muted);line-height:1.5">Recent interest<br>ENG / CTR / WATCH</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:9px">
+            <span style="width:12px;height:12px;border-radius:50%;background:#808080;
+                         flex-shrink:0;margin-top:2px;display:inline-block"></span>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text)">Fading</div>
+              <div style="font-size:10px;color:var(--muted);line-height:1.5">Old interest<br>λ=0.035 decay</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:9px">
+            <span style="width:12px;height:12px;background:#ff4a4a;box-shadow:0 0 8px #ff4a4a;
+                         flex-shrink:0;margin-top:2px;display:inline-block;
+                         clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)"></span>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text)">Mutation ⚠</div>
+              <div style="font-size:10px;color:var(--muted);line-height:1.5">Z-test burst<br>Z&gt;2.0, rare hist.</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:9px">
+            <span style="width:12px;height:12px;border-radius:50%;background:#c07aff;box-shadow:0 0 8px #c07aff;
+                         flex-shrink:0;margin-top:2px;display:inline-block"></span>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--text)">Predicted</div>
+              <div style="font-size:10px;color:var(--muted);line-height:1.5">Co-occurrence<br>predicted next</div>
+            </div>
+          </div>
+          <hr style="border-color:var(--border);margin:0">
+          <div style="font-size:10px;color:var(--muted);line-height:1.9">
+            <i class="bi bi-circle me-1"></i><b style="color:var(--text)">Size</b> ∝ decay<br>
+            <i class="bi bi-arrow-left-right me-1"></i><b style="color:var(--text)">X-pos</b>: past→future<br>
+            <i class="bi bi-bezier me-1"></i><b style="color:var(--text)">Edge</b>: Markov P<br>
+            <i class="bi bi-hand-index me-1"></i><b style="color:var(--text)">Drag</b> to rearrange
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graph canvas -->
+    <div class="col-xl-10 col-md-9">
+      <div class="v-card">
+        <div class="v-card-header">
+          <div class="v-card-title">
+            <i class="bi bi-diagram-3-fill icon" style="color:#c07aff"></i>
+            Interest Evolution Graph
+          </div>
+          <span style="font-size:11px;color:var(--muted)">
+            D3.js Force-directed &middot; Time-decay nodes &middot; Markov edges
+          </span>
+        </div>
+        <div class="v-card-body" style="padding:0">
+          <div id="igGraphContainer"
+               style="width:100%;min-height:700px;
+                      background:radial-gradient(ellipse at 50% -20%,rgba(40,110,255,.18),transparent 50%),
+                                 radial-gradient(ellipse at 8% 110%,rgba(110,60,255,.14),transparent 55%),#060a14;
+                      border-radius:0 0 14px 14px;overflow:hidden;position:relative;
+                      display:flex;align-items:center;justify-content:center">
+            <div id="igPlaceholder" style="text-align:center;color:var(--muted);pointer-events:none">
+              <i class="bi bi-diagram-3" style="font-size:52px;opacity:.2;display:block;margin-bottom:14px"></i>
+              <div style="font-size:13px;margin-bottom:6px">Select a user and click <strong style="color:#c07aff">Generate Graph</strong></div>
+              <div style="font-size:11px;opacity:.5">Builds interest evolution from KuaiRand interaction history</div>
+            </div>
+          </div>
+        </div>
+        <div class="v-card-footer">
+          <i class="bi bi-info-circle me-1"></i>
+          10-step algorithm: tag aggregation → exponential decay (λ=0.035, ~20d half-life) →
+          Z-test mutation detection (Z&gt;2.0) → co-occurrence prediction → 1st-order Markov transitions
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div><!-- /interest-graph -->
 
 
 </div><!-- /page-content -->
