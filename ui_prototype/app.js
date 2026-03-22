@@ -63,6 +63,7 @@ async function loadUserSelect() {
   sel.innerHTML = data.users.slice(0, 100).map(uid =>
     `<option value="${uid}">User #${uid}</option>`
   ).join('')
+  updateProfile(data.users[0])
 }
 loadUserSelect()
 
@@ -277,8 +278,8 @@ function initProfileCharts() {
 
   // Radar
 
-  // KNN canvas
-  drawKNN(42)
+  // KNN canvas + initial profile data
+  updateProfile(document.getElementById('userSelect')?.value ?? 42)
 }
 
 function drawKNN(uid) {
