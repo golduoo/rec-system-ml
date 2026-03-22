@@ -5,6 +5,7 @@ GET /api/users              → available user ID list
 GET /api/user/{user_id}/profile → user profile (tag distribution + stats)
 """
 from fastapi import APIRouter, HTTPException
+import utils.loader as _loader
 from utils.loader import get_artifact, get_user_tag_profile
 
 router = APIRouter()
@@ -40,6 +41,7 @@ def user_profile(user_id: int):
         "user_id": user_id,
         "click_count": click_count,
         "activity_percentile": activity_pct,
+        "register_days": _loader.user_register_days.get(user_id),
         "tag_profile": tag_profile,
         "history_sample": history[:10],
     }

@@ -20,6 +20,7 @@ user_tag_profiles: dict | None = None  # {user_id: {tag_id: weight, ...}}
 video_tags: dict | None = None         # {video_id: [tag_id, ...]}
 data_dir: Path | None = None
 popularity_ranking: list[tuple[int, int]] = []   # [(video_id, click_count), ...]
+user_register_days: dict[int, int] = {}          # {user_id: register_days}
 
 tag_matrix: "pd.DataFrame | None" = None
 interactions_df: "pd.DataFrame | None" = None
@@ -86,11 +87,15 @@ def _build_clusters(profiles: dict[int, dict[int, float]],
 
 def load_all(artifact_path: Path, raw_data_dir: Path) -> None:
     global artifact, user_tag_profiles, video_tags, data_dir, popularity_ranking
-    global tag_matrix, interactions_df
+    global tag_matrix, interactions_df, user_register_days
 
     data_dir = raw_data_dir
 
     artifact = joblib.load(artifact_path)
+
+    user_feat_path = raw_data_dir / "user_features_1k.csv"
+    user_feat_df = pd.read_csv(user_feat_path, usecols=["user_id", "register_days"])
+    user_register_days = {int(r.user_id): int(r.register_days) for r in user_feat_df.itertuples()}
 
     basic_path = raw_data_dir / "video_features_basic_1k.csv"
     basic_df = pd.read_csv(basic_path, usecols=["video_id", "tag"])

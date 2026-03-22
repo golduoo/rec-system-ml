@@ -332,7 +332,7 @@ async function updateProfile(uid) {
   document.getElementById('u-active').textContent = level
   document.getElementById('u-follow').textContent = data.click_count?.toLocaleString() ?? '--'
   document.getElementById('u-fans').textContent   = (data.history_sample?.length ?? 0)
-  document.getElementById('u-days').textContent   = `${pct}%`
+  document.getElementById('u-days').textContent   = data.register_days ?? '--'
 
   // Update tag donut chart
   if (data.tag_profile?.length) {
